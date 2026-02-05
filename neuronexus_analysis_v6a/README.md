@@ -42,20 +42,6 @@ PLX File
         ├─→ CSV (位相ロック結果、ユニットサマリー)
         ├─→ NPZ (ソーティング結果)
         └─→ PNG (9パネルサマリー、集団プロット)
-
-  └─→ [Step 7] 全チャンネル統合解析 (comprehensive_analysis.py)
-        ├─→ スパイクソーティング全チャンネル概要
-        │     ├─→ 波形一覧、品質散布図、発火率深度プロファイル
-        │     └─→ 条件別発火率深度プロファイル
-        ├─→ LFP深度解析
-        │     ├─→ CSD (Current Source Density)
-        │     ├─→ パワースペクトル深度ヒートマップ
-        │     ├─→ 帯域別パワー深度プロファイル
-        │     └─→ チャンネル間コヒーレンス行列
-        ├─→ スパイク-LFP統合深度解析
-        │     ├─→ 位相ロック深度プロファイル
-        │     └─→ STA深度プロファイル
-        └─→ グランドサマリー (12パネル) + レポート
 ```
 
 ## ファイル構成
@@ -66,8 +52,7 @@ PLX File
 | `data_loader.py` | PLX読み込み、RecordingSessionデータクラス |
 | `stimulus.py` | 刺激プロトコル解析（PSTH、適応、STA） |
 | `spike_lfp_analysis.py` | スパイク-LFP統合解析（位相ロック） |
-| `comprehensive_analysis.py` | 全チャンネル統合解析（CSD、深度プロファイル、グランドサマリー） |
-| `run_analysis.py` | 統合ワークフロー（Step 1-7） |
+| `run_analysis.py` | 統合ワークフロー（Step 1-6） |
 
 ### 既存モジュール
 | ファイル | 説明 |

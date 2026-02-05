@@ -314,6 +314,8 @@ class StimulusProtocol:
         baseline_mask = np.zeros(n_samples, dtype=bool)
         post_mask = np.zeros(n_samples, dtype=bool)
         
+        trial_ranges = self.trial_ranges if hasattr(self, 'trial_ranges_cached') else []
+        
         # Trial構造から範囲を計算
         if self.stim_matrix.ndim == 2 and len(self.stim_matrix) > 0:
             for trial_stims in self.stim_matrix:

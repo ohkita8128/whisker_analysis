@@ -492,59 +492,6 @@ def step6_save_and_plot(analyzer, sorting_results, protocol,
 
 
 # ============================================================
-# Step 7: 全チャンネル統合解析
-# ============================================================
-
-def step7_comprehensive(session, lfp_result, sorting_results,
-                         protocol=None, analyzer=None,
-                         output_dir=None, verbose=True):
-    """
-    全チャンネル横断の統合解析
-
-    - スパイクソーティング概要（波形一覧・品質テーブル・発火率深度）
-    - LFP深度解析（CSD・パワー深度・コヒーレンス）
-    - 位相ロック深度プロファイル
-    - グランドサマリー
-    - テキストレポート
-
-    Parameters
-    ----------
-    session : RecordingSession
-    lfp_result : dict
-        step2 の出力
-    sorting_results : dict
-        step3 の出力
-    protocol : StimulusProtocol or None
-    analyzer : SpikeLFPAnalyzer or None
-        step5 の出力
-    output_dir : str or None
-        保存先ディレクトリ
-
-    Returns
-    -------
-    ca : ComprehensiveAnalyzer
-    """
-    from comprehensive_analysis import ComprehensiveAnalyzer
-
-    log = print if verbose else lambda *a, **kw: None
-    log("\n=== Step 7: Comprehensive Cross-Channel Analysis ===")
-
-    ca = ComprehensiveAnalyzer(
-        session=session,
-        lfp_result=lfp_result,
-        sorting_results=sorting_results,
-        protocol=protocol,
-        spike_lfp_analyzer=analyzer,
-    )
-
-    if output_dir:
-        comp_dir = os.path.join(output_dir, 'comprehensive')
-        ca.save_all(comp_dir, verbose=verbose)
-
-    return ca
-
-
-# ============================================================
 # 完全パイプライン
 # ============================================================
 
@@ -610,13 +557,6 @@ def run_full_pipeline(plx_file, output_dir=None, channel_order=None,
     # Step 6
     step6_save_and_plot(analyzer, sorting_results, protocol, output_dir, basename, verbose)
     
-    # Step 7: 全チャンネル統合解析
-    ca = step7_comprehensive(
-        session, lfp_result, sorting_results,
-        protocol=protocol, analyzer=analyzer,
-        output_dir=output_dir, verbose=verbose
-    )
-    
     return {
         'session': session,
         'lfp_result': lfp_result,
@@ -624,7 +564,6 @@ def run_full_pipeline(plx_file, output_dir=None, channel_order=None,
         'protocol': protocol,
         'stim_results': stim_results,
         'analyzer': analyzer,
-        'comprehensive': ca,
     }
 
 
