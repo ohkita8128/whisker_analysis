@@ -632,9 +632,10 @@ class AnalysisExplorerGUI:
         ]
         for text, val in modes:
             ttk.Radiobutton(mode_frame, text=text, value=val,
-                            variable=self.lfp_mode_var).pack(anchor='w', padx=10, pady=2)
+                            variable=self.lfp_mode_var,
+                            command=self._draw_lfp).pack(anchor='w', padx=10, pady=2)
 
-        ttk.Button(mode_frame, text="▶ 描画",
+        ttk.Button(mode_frame, text="▶ 再描画",
                    command=self._draw_lfp).pack(fill='x', padx=10, pady=5)
 
         # 時間範囲
@@ -685,6 +686,16 @@ class AnalysisExplorerGUI:
         ttk.Combobox(band_frame, textvariable=self.band_preset_var,
                      values=['Standard', 'High Gamma', 'Rodent', 'Simple'],
                      state='readonly', width=14).pack(padx=10, pady=5)
+
+        # 振幅スケール
+        amp_frame = ttk.LabelFrame(left, text="振幅スケール (µV)")
+        amp_frame.pack(fill='x', padx=5, pady=5)
+        self.lfp_amp_var = tk.StringVar(value="auto")
+        ttk.Radiobutton(amp_frame, text="自動", value="auto",
+                        variable=self.lfp_amp_var).pack(anchor='w', padx=10, pady=1)
+        for val in ["100", "200", "500", "1000"]:
+            ttk.Radiobutton(amp_frame, text=val, value=val,
+                            variable=self.lfp_amp_var).pack(anchor='w', padx=10, pady=1)
 
         # --- 右: プロット ---
         right = ttk.Frame(pw)
@@ -758,9 +769,17 @@ class AnalysisExplorerGUI:
         times = self.lfp_times[tmask]
 
         ax = fig.add_subplot(111)
-        spacing = np.percentile(np.abs(self.lfp[tmask]), 98) * 1.5
-        if spacing == 0:
-            spacing = 1.0
+
+        # 振幅スケール
+        amp_str = self.lfp_amp_var.get()
+        if amp_str == "auto":
+            spacing = np.percentile(np.abs(self.lfp[tmask]), 95) * 2.5
+            if spacing < 1e-6:
+                spacing = np.std(self.lfp[tmask]) * 6
+            if spacing < 1e-6:
+                spacing = 1.0
+        else:
+            spacing = float(amp_str)
 
         # 条件マスク背景
         if self.show_masks_var.get():
@@ -1164,9 +1183,10 @@ class AnalysisExplorerGUI:
         ]
         for text, val in modes:
             ttk.Radiobutton(mode_frame, text=text, value=val,
-                            variable=self.integ_mode_var).pack(anchor='w', padx=10, pady=2)
+                            variable=self.integ_mode_var,
+                            command=self._draw_integrated).pack(anchor='w', padx=10, pady=2)
 
-        ttk.Button(mode_frame, text="▶ 描画",
+        ttk.Button(mode_frame, text="▶ 再描画",
                    command=self._draw_integrated).pack(fill='x', padx=10, pady=5)
 
         # 帯域選択（位相ロック用）
