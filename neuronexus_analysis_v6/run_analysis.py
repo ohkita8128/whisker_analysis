@@ -651,7 +651,7 @@ def run_full_pipeline(plx_file, output_dir=None, channel_order=None,
         output_dir=output_dir, verbose=verbose
     )
     
-    return {
+    results = {
         'session': session,
         'lfp_result': lfp_result,
         'sorting_results': sorting_results,
@@ -660,6 +660,57 @@ def run_full_pipeline(plx_file, output_dir=None, channel_order=None,
         'analyzer': analyzer,
         'comprehensive': ca,
     }
+    
+    return results
+
+
+# ============================================================
+# Step 8: 解析エクスプローラ GUI
+# ============================================================
+
+def step8_explorer(session, lfp_result, sorting_results,
+                   protocol=None, sla=None, ca=None):
+    """
+    インタラクティブ解析エクスプローラGUIを起動
+    
+    全解析結果をタブ形式で探索：
+      - 🧠 スパイク概要: 品質テーブル + 波形一覧 + 9パネル詳細
+      - 📊 LFP解析: 全ch波形 + PSD + CSD + ヒートマップ
+      - 🔗 統合解析: 位相ロック × 深度 + STA + 条件別MRL  
+      - 💾 エクスポート: PNG/CSV一括保存
+    
+    Parameters
+    ----------
+    session : RecordingSession
+    lfp_result : dict
+    sorting_results : dict
+    protocol : StimulusProtocol, optional
+    sla : SpikeLFPAnalyzer, optional
+    ca : ComprehensiveAnalyzer, optional
+    """
+    from analysis_gui import launch_explorer
+    return launch_explorer(
+        session, lfp_result, sorting_results,
+        protocol=protocol, sla=sla, ca=ca
+    )
+
+
+def launch_explorer_from_results(results):
+    """
+    run_full_pipeline() の戻り値から直接GUIを起動
+    
+    Usage:
+        results = run_full_pipeline(...)
+        launch_explorer_from_results(results)
+    """
+    return step8_explorer(
+        session=results['session'],
+        lfp_result=results['lfp_result'],
+        sorting_results=results['sorting_results'],
+        protocol=results.get('protocol'),
+        sla=results.get('analyzer'),
+        ca=results.get('comprehensive'),
+    )
 
 
 # ============================================================
@@ -678,6 +729,8 @@ if __name__ == "__main__":
     parser.add_argument("--curation", choices=['auto', 'gui', 'both', 'none'],
                        default='auto',
                        help="Curation mode: auto/gui/both/none (default: auto)")
+    parser.add_argument("--gui", action="store_true",
+                       help="Launch Analysis Explorer GUI after pipeline")
     parser.add_argument("--quiet", action="store_true", help="Minimal output")
     
     args = parser.parse_args()
@@ -690,5 +743,9 @@ if __name__ == "__main__":
         curation=args.curation,
         verbose=not args.quiet,
     )
+    
+    if args.gui:
+        print("\nLaunching Analysis Explorer GUI ...")
+        launch_explorer_from_results(results)
     
     print("\nDone!")

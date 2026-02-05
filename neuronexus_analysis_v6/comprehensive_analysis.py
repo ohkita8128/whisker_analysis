@@ -337,7 +337,7 @@ class ComprehensiveAnalyzer:
             print(f"Saved: {save_path}")
         return fig
 
-    def plot_firing_rate_by_condition(self, save_path=None, figsize=(10, 8)):
+    def plot_firing_rate_by_condition(self, save_path=None, figsize=(10, 8), fig=None):
         """
         条件別（Baseline / Stim / Post）発火率の深度プロファイル
         """
@@ -347,7 +347,10 @@ class ComprehensiveAnalyzer:
 
         masks = self.protocol.create_condition_masks(self.lfp_times, self.fs)
 
-        fig, axes = plt.subplots(1, 3, figsize=figsize, sharey=True)
+        if fig is None:
+            fig, axes = plt.subplots(1, 3, figsize=figsize, sharey=True)
+        else:
+            axes = fig.subplots(1, 3, sharey=True)
         conditions = [('baseline', 'gray'), ('stim', 'red'), ('post', 'blue')]
 
         for ax, (cond, color) in zip(axes, conditions):
@@ -854,7 +857,7 @@ class ComprehensiveAnalyzer:
     #  4. グランドサマリー
     # ================================================================
 
-    def plot_grand_summary(self, save_path=None, figsize=(24, 18)):
+    def plot_grand_summary(self, save_path=None, figsize=(24, 18), fig=None):
         """
         全解析のグランドサマリー（12パネル）
 
@@ -863,7 +866,8 @@ class ComprehensiveAnalyzer:
         Row 3: [位相ロック深度   ] [STA代表   ] [条件別MRL  ]
         Row 4: [PSTH代表         ] [適応代表  ] [テキストサマリー]
         """
-        fig = plt.figure(figsize=figsize)
+        if fig is None:
+            fig = plt.figure(figsize=figsize)
         gs = GridSpec(4, 3, figure=fig, hspace=0.45, wspace=0.35)
 
         # ========= Row 1: スパイクソーティング =========
