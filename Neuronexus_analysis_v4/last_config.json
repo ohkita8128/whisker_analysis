@@ -1,0 +1,82 @@
+{
+  "plx_file": "//Nagoya_AMCBNAS2/wakelab7/okita/whisker_analysis/20260114-1_Wildtype_S1BF/260114-4_Wildtype_S1BF_920_wisker/260114-4_Wildtype_S1BF_920_wisker.plx",
+  "output_dir": "//Nagoya_AMCBNAS2/wakelab7/okita/whisker_analysis/20260114-1_Wildtype_S1BF/0203解析",
+  "n_sessions": "9",
+  "n_stim_per_session": "10",
+  "baseline_pre_sec": "3.0",
+  "post_duration_sec": "3.0",
+  "filter_enabled": true,
+  "filter_lowcut": "0.1",
+  "filter_highcut": "100",
+  "notch_enabled": true,
+  "notch_freq": "60.0",
+  "harmonic_removal_enabled": true,
+  "harmonic_fundamental": "10.0",
+  "harmonic_count": "4",
+  "harmonic_q": "220",
+  "noise_removal_enabled": false,
+  "noise_file": "//nagoya_amcbnas2/wakelab7/okita/whisker_analysis/20260114-1_Wildtype_S1BF/260114-1_test1/260114-1_test1.plx",
+  "noise_threshold_db": "10",
+  "bad_channel_detection": true,
+  "bad_channel_threshold": "3",
+  "manual_bad_channels": "",
+  "motion_analysis": true,
+  "motion_roi": "",
+  "motion_percentile": "75.0",
+  "motion_expand_sec": "0.1",
+  "ica_enabled": true,
+  "ica_noise_ratio_threshold": "1.5",
+  "ica_max_remove": "4",
+  "fft_freq_max": "200.0",
+  "power_freq_max": "100",
+  "wavelet_enabled": true,
+  "wavelet_start": "0",
+  "wavelet_end": "0",
+  "wavelet_freq_min": "1.0",
+  "wavelet_freq_max": "150.0",
+  "wavelet_n_freqs": "75",
+  "wavelet_single": true,
+  "wavelet_all": true,
+  "wavelet_channel": "0",
+  "show_plots": true,
+  "save_plots": true,
+  "plot_t_start": "0",
+  "plot_t_end": "0",
+  "processing_overview": true,
+  "power_analysis": true,
+  "channel_heatmap": true,
+  "ica_components": true,
+  "fft_comparison": true,
+  "lfp_regions": true,
+  "edge_check": true,
+  "save_summary_csv": true,
+  "save_channel_csv": true,
+  "save_results_npz": true,
+  "save_processed_npz": false,
+  "create_sync_video": false,
+  "sync_video_start": "0",
+  "sync_video_end": "0.0",
+  "verbose": true,
+  "bands": {
+    "delta": [
+      1.0,
+      4.0
+    ],
+    "theta": [
+      4.0,
+      8.0
+    ],
+    "alpha": [
+      8.0,
+      14.0
+    ],
+    "beta": [
+      14.0,
+      30.0
+    ],
+    "gamma": [
+      30.0,
+      80.0
+    ]
+  }
+}
