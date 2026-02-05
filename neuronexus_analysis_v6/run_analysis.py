@@ -215,9 +215,10 @@ def step2_process_lfp(session, config=None, use_gui=False, verbose=True):
 # ============================================================
 
 def step3_spike_sorting(session, channels=None, config=None, 
-                        use_gui=True, verbose=True):
+                        curation='auto', auto_config=None,
+                        verbose=True):
     """
-    スパイクソーティング
+    スパイクソーティング + キュレーション
     
     Parameters
     ----------
@@ -225,20 +226,30 @@ def step3_spike_sorting(session, channels=None, config=None,
     channels : list or None
         ソーティングするチャンネル。Noneで全チャンネル。
     config : SortingConfig or None
-    use_gui : bool
-        TrueでGUIを起動
+    curation : str
+        キュレーションモード:
+          'auto'  → 基準ベースで自動分類・マージ（GUIなし）
+          'gui'   → 手動キュレーション（GUIのみ、自動分類なし）
+          'both'  → 自動分類してからGUIで確認・微調整
+          'none'  → キュレーションなし（生のクラスタリング結果のまま）
+    auto_config : AutoCurationConfig or None
+        自動キュレーション設定（curation='auto' or 'both' 時のみ）
     
     Returns
     -------
     sorting_results : dict {channel: ChannelSortResult}
     """
-    from spike_sorting import sort_channel, sort_all_channels, SortingConfig, bandpass_filter
+    from spike_sorting import (sort_channel, SortingConfig, bandpass_filter,
+                                AutoCurationConfig, auto_curate_all)
     
     log = print if verbose else lambda *a, **kw: None
     log("\n=== Step 3: Spike Sorting ===")
+    log(f"  Curation mode: {curation}")
     
     if config is None:
         config = SortingConfig()
+    if auto_config is None:
+        auto_config = AutoCurationConfig()
     
     wideband = session.wideband
     fs = session.fs_wideband
@@ -250,7 +261,7 @@ def step3_spike_sorting(session, channels=None, config=None,
     log(f"  Bandpass: {config.filter_low}-{config.filter_high} Hz")
     filtered = bandpass_filter(wideband, fs, config.filter_low, config.filter_high, config.filter_order)
     
-    # 自動ソーティング
+    # 自動ソーティング（全モード共通）
     sorting_results = {}
     for ch in channels:
         log(f"\n  --- Channel {ch} ---")
@@ -259,15 +270,26 @@ def step3_spike_sorting(session, channels=None, config=None,
     
     total_units = sum(len(r.units) for r in sorting_results.values())
     total_spikes = sum(sum(u.n_spikes for u in r.units) for r in sorting_results.values())
-    log(f"\n  Total: {total_units} units, {total_spikes} spikes")
+    log(f"\n  Clustering done: {total_units} units, {total_spikes} spikes")
     
-    # GUI
-    if use_gui:
+    # --- キュレーション ---
+    
+    # 自動キュレーション（'auto' or 'both'）
+    if curation in ('auto', 'both'):
+        recording_duration = session.duration if hasattr(session, 'duration') else None
+        summary = auto_curate_all(
+            sorting_results, auto_config, config,
+            recording_duration, verbose
+        )
+        log(f"\n  Auto-curation: {summary['total_su']} SU, "
+            f"{summary['total_mua']} MUA, {summary['total_noise']} Noise")
+    
+    # GUIキュレーション（'gui' or 'both'）
+    if curation in ('gui', 'both'):
         log("\n  Opening GUI for manual curation...")
         from spike_sorting_gui import SpikeSortingGUI
         gui = SpikeSortingGUI(sorting_results)
         gui.run()
-        # GUIで編集された結果を取得
         sorting_results = gui.results
     
     return sorting_results
@@ -550,8 +572,8 @@ def step7_comprehensive(session, lfp_result, sorting_results,
 
 def run_full_pipeline(plx_file, output_dir=None, channel_order=None,
                       sorting_file=None, sort_channels=None,
-                      use_gui=False, freq_bands=None,
-                      verbose=True):
+                      curation='auto', auto_config=None,
+                      freq_bands=None, verbose=True):
     """
     全ステップを一括実行
     
@@ -567,8 +589,10 @@ def run_full_pipeline(plx_file, output_dir=None, channel_order=None,
         保存済みソーティング結果。Noneで新規ソーティング。
     sort_channels : list or None
         ソーティングするチャンネル
-    use_gui : bool
-        GUIを使うか
+    curation : str
+        'auto', 'gui', 'both', 'none'
+    auto_config : AutoCurationConfig or None
+        自動キュレーション設定
     freq_bands : dict or None
         位相ロック解析の周波数帯域
     verbose : bool
@@ -592,9 +616,19 @@ def run_full_pipeline(plx_file, output_dir=None, channel_order=None,
     # Step 3
     if sorting_file and os.path.exists(sorting_file):
         sorting_results = step3_load_sorting(sorting_file, verbose)
+        # ロード後も自動キュレーションを適用可能
+        if curation in ('auto', 'both'):
+            from spike_sorting import AutoCurationConfig, auto_curate_all
+            if auto_config is None:
+                auto_config = AutoCurationConfig()
+            recording_duration = session.duration if hasattr(session, 'duration') else None
+            auto_curate_all(sorting_results, auto_config,
+                            recording_duration=recording_duration, verbose=verbose)
     else:
         sorting_results = step3_spike_sorting(
-            session, channels=sort_channels, use_gui=use_gui, verbose=verbose
+            session, channels=sort_channels,
+            curation=curation, auto_config=auto_config,
+            verbose=verbose
         )
     
     # Step 4
@@ -641,7 +675,9 @@ if __name__ == "__main__":
     parser.add_argument("--sorting", default=None, help="Pre-sorted NPZ file")
     parser.add_argument("--channels", nargs='+', type=int, default=None,
                        help="Channels to sort")
-    parser.add_argument("--gui", action="store_true", help="Use sorting GUI")
+    parser.add_argument("--curation", choices=['auto', 'gui', 'both', 'none'],
+                       default='auto',
+                       help="Curation mode: auto/gui/both/none (default: auto)")
     parser.add_argument("--quiet", action="store_true", help="Minimal output")
     
     args = parser.parse_args()
@@ -651,7 +687,7 @@ if __name__ == "__main__":
         output_dir=args.output,
         sorting_file=args.sorting,
         sort_channels=args.channels,
-        use_gui=args.gui,
+        curation=args.curation,
         verbose=not args.quiet,
     )
     

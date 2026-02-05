@@ -105,6 +105,385 @@ class SortingConfig:
     isi_violation_threshold_ms: float = 2.0  # 不応期
 
 
+@dataclass
+class AutoCurationConfig:
+    """
+    自動キュレーション設定
+    
+    品質分類の階層:
+        Noise  → 除外（解析から外す）
+        MUA    → マルチユニット（残すが区別する）
+        Good SU → シングルユニット
+        Excellent SU → 高品質シングルユニット
+    
+    自動マージ:
+        波形相関が高い＆振幅が近いユニットは同一ニューロンの可能性 → 統合
+    """
+    # === Noise判定 ===
+    noise_snr_max: float = 1.5          # SNR < これ → Noise
+    noise_isi_min: float = 15.0         # ISI違反% > これ → Noise
+    noise_min_spikes: int = 30          # スパイク数 < これ → Noise
+    
+    # === MUA判定（Noiseでないもの） ===
+    mua_isi_min: float = 5.0            # ISI違反% > これ → 必ずMUA
+    mua_isi_soft: float = 2.0           # ISI違反% > これ AND SNR < mua_snr_max → MUA
+    mua_snr_max: float = 4.0            # ↑ と組み合わせ
+    
+    # === SU判定 ===
+    su_good_isi_max: float = 2.0        # ISI違反% < これ → Good SU
+    su_good_snr_min: float = 3.0        # SNR > これ → Good SU (ISI条件も必要)
+    su_excellent_isi_max: float = 0.5   # ISI違反% < これ → Excellent SU候補
+    su_excellent_snr_min: float = 6.0   # SNR > これ → Excellent SU (ISI条件も必要)
+    
+    # === 自動マージ ===
+    merge_enabled: bool = True
+    merge_waveform_corr_min: float = 0.92   # 波形相関 > これ → マージ候補
+    merge_amplitude_ratio_max: float = 0.25 # 振幅差/大きい方 < これ → マージ
+    
+    # === 発火率フィルタ ===
+    min_firing_rate_hz: float = 0.0     # 0 = 無効。> 0 なら低発火率ユニットをNoiseに
+
+
+# ============================================================
+# 自動キュレーション
+# ============================================================
+
+def classify_unit(unit: SpikeUnit, config: AutoCurationConfig = None,
+                  recording_duration: float = None) -> str:
+    """
+    単一ユニットを品質分類する
+    
+    Parameters
+    ----------
+    unit : SpikeUnit
+    config : AutoCurationConfig
+    recording_duration : float or None
+        記録全長（秒）。発火率フィルタに使用。
+    
+    Returns
+    -------
+    quality : str
+        'noise', 'mua', 'good_su', 'excellent_su'
+    """
+    if config is None:
+        config = AutoCurationConfig()
+    
+    snr = unit.snr
+    isi = unit.isi_violation_rate
+    n = unit.n_spikes
+    
+    # 発火率チェック
+    if recording_duration and recording_duration > 0 and config.min_firing_rate_hz > 0:
+        fr = n / recording_duration
+        if fr < config.min_firing_rate_hz:
+            return 'noise'
+    
+    # --- Noise ---
+    if snr < config.noise_snr_max:
+        return 'noise'
+    if isi > config.noise_isi_min:
+        return 'noise'
+    if n < config.noise_min_spikes:
+        return 'noise'
+    
+    # --- MUA ---
+    if isi > config.mua_isi_min:
+        return 'mua'
+    if isi > config.mua_isi_soft and snr < config.mua_snr_max:
+        return 'mua'
+    
+    # --- Excellent SU ---
+    if isi < config.su_excellent_isi_max and snr > config.su_excellent_snr_min:
+        return 'excellent_su'
+    
+    # --- Good SU ---
+    if isi < config.su_good_isi_max and snr > config.su_good_snr_min:
+        return 'good_su'
+    
+    # ボーダーライン: SNRは十分だがISIがやや高い → MUA寄り
+    if isi >= config.su_good_isi_max:
+        return 'mua'
+    
+    # SNRが低いがISIは良い → 一応SU（borderline）
+    return 'good_su'
+
+
+def _waveform_similarity(unit_a: SpikeUnit, unit_b: SpikeUnit) -> Tuple[float, float]:
+    """
+    2ユニット間の波形類似度を計算
+    
+    Returns
+    -------
+    correlation : float
+        平均波形のピアソン相関 [-1, 1]
+    amplitude_ratio : float
+        振幅差 / 大きい方の振幅 [0, 1]
+    """
+    mean_a = np.mean(unit_a.waveforms, axis=0)
+    mean_b = np.mean(unit_b.waveforms, axis=0)
+    
+    # 相関
+    if np.std(mean_a) == 0 or np.std(mean_b) == 0:
+        corr = 0.0
+    else:
+        corr = float(np.corrcoef(mean_a, mean_b)[0, 1])
+    
+    # 振幅比
+    amp_a = np.abs(np.min(mean_a))
+    amp_b = np.abs(np.min(mean_b))
+    max_amp = max(amp_a, amp_b)
+    amp_ratio = abs(amp_a - amp_b) / max_amp if max_amp > 0 else 1.0
+    
+    return corr, amp_ratio
+
+
+def auto_merge_similar(result: ChannelSortResult, config: AutoCurationConfig = None,
+                       sorting_config: SortingConfig = None,
+                       verbose: bool = True) -> Tuple[ChannelSortResult, List[Tuple]]:
+    """
+    波形が類似したユニットを自動マージ
+    
+    Parameters
+    ----------
+    result : ChannelSortResult
+    config : AutoCurationConfig
+    sorting_config : SortingConfig
+    verbose : bool
+    
+    Returns
+    -------
+    result : ChannelSortResult (変更済み)
+    merged_pairs : list of (unit_id_a, unit_id_b, correlation, amp_ratio)
+    """
+    if config is None:
+        config = AutoCurationConfig()
+    if sorting_config is None:
+        sorting_config = SortingConfig()
+    
+    merged_pairs = []
+    active_units = [u for u in result.units if not u.is_noise and len(u.waveforms) > 0]
+    
+    if len(active_units) < 2:
+        return result, merged_pairs
+    
+    # 全ペアの類似度を計算
+    candidates = []
+    for i in range(len(active_units)):
+        for j in range(i + 1, len(active_units)):
+            corr, amp_ratio = _waveform_similarity(active_units[i], active_units[j])
+            if corr > config.merge_waveform_corr_min and amp_ratio < config.merge_amplitude_ratio_max:
+                candidates.append((
+                    active_units[i].unit_id,
+                    active_units[j].unit_id,
+                    corr, amp_ratio
+                ))
+    
+    # 相関が高い順にマージ
+    candidates.sort(key=lambda x: x[2], reverse=True)
+    
+    already_merged = set()
+    for uid_a, uid_b, corr, amp_ratio in candidates:
+        if uid_a in already_merged or uid_b in already_merged:
+            continue
+        
+        if verbose:
+            print(f"    Auto-merge: Unit{uid_a} + Unit{uid_b} "
+                  f"(corr={corr:.3f}, amp_ratio={amp_ratio:.3f})")
+        
+        result = merge_units(result, [uid_a, uid_b], sorting_config)
+        merged_pairs.append((uid_a, uid_b, corr, amp_ratio))
+        already_merged.add(uid_b)  # uid_b は uid_a に吸収
+    
+    return result, merged_pairs
+
+
+def auto_curate_channel(result: ChannelSortResult,
+                        config: AutoCurationConfig = None,
+                        sorting_config: SortingConfig = None,
+                        recording_duration: float = None,
+                        verbose: bool = True) -> Dict[str, Any]:
+    """
+    1チャンネルの自動キュレーション
+    
+    処理順序:
+        1. 各ユニットを分類 → Noise/MUA/SU ラベル付け
+        2. 類似ユニットを自動マージ（有効時）
+        3. マージ後に再分類
+    
+    Parameters
+    ----------
+    result : ChannelSortResult
+    config : AutoCurationConfig
+    sorting_config : SortingConfig
+    recording_duration : float or None
+    verbose : bool
+    
+    Returns
+    -------
+    report : dict
+        'channel', 'n_original', 'classifications', 'merged_pairs',
+        'n_noise', 'n_mua', 'n_su', 'n_excellent'
+    """
+    if config is None:
+        config = AutoCurationConfig()
+    if sorting_config is None:
+        sorting_config = SortingConfig()
+    
+    ch = result.channel
+    n_original = len(result.units)
+    
+    if verbose:
+        print(f"\n  Ch{ch}: {n_original} units → auto-curating...")
+    
+    # Step 1: 初回分類
+    for unit in result.units:
+        quality = classify_unit(unit, config, recording_duration)
+        if quality == 'noise':
+            unit.is_noise = True
+            unit.is_mua = False
+        elif quality == 'mua':
+            unit.is_noise = False
+            unit.is_mua = True
+        else:
+            unit.is_noise = False
+            unit.is_mua = False
+    
+    # Step 2: 自動マージ（Noise以外）
+    merged_pairs = []
+    if config.merge_enabled:
+        result, merged_pairs = auto_merge_similar(
+            result, config, sorting_config, verbose)
+    
+    # Step 3: マージ後に再分類
+    for unit in result.units:
+        if unit.is_noise:
+            continue  # 既にNoiseのものはスキップ
+        quality = classify_unit(unit, config, recording_duration)
+        if quality == 'noise':
+            unit.is_noise = True
+            unit.is_mua = False
+        elif quality == 'mua':
+            unit.is_mua = True
+        else:
+            unit.is_mua = False
+    
+    # レポート生成
+    classifications = {}
+    for unit in result.units:
+        q = classify_unit(unit, config, recording_duration)
+        classifications[f'ch{ch}_unit{unit.unit_id}'] = {
+            'quality': q,
+            'snr': unit.snr,
+            'isi_violation': unit.isi_violation_rate,
+            'n_spikes': unit.n_spikes,
+            'is_noise': unit.is_noise,
+            'is_mua': unit.is_mua,
+        }
+    
+    n_noise = sum(1 for u in result.units if u.is_noise)
+    n_mua = sum(1 for u in result.units if u.is_mua and not u.is_noise)
+    n_su = sum(1 for u in result.units if not u.is_noise and not u.is_mua)
+    n_excellent = sum(1 for u in result.units
+                      if not u.is_noise and not u.is_mua
+                      and classify_unit(u, config) == 'excellent_su')
+    
+    if verbose:
+        print(f"  Ch{ch}: → {n_su} SU ({n_excellent} excellent) "
+              f"+ {n_mua} MUA + {n_noise} Noise")
+        if merged_pairs:
+            print(f"         {len(merged_pairs)} pairs merged")
+        for unit in result.units:
+            q = classify_unit(unit, config, recording_duration)
+            mark = {'noise': '✗', 'mua': '△', 'good_su': '○', 'excellent_su': '◎'}[q]
+            print(f"    {mark} Unit{unit.unit_id}: "
+                  f"n={unit.n_spikes:4d}, SNR={unit.snr:.1f}, "
+                  f"ISI={unit.isi_violation_rate:.1f}% → {q}")
+    
+    return {
+        'channel': ch,
+        'n_original': n_original,
+        'classifications': classifications,
+        'merged_pairs': merged_pairs,
+        'n_noise': n_noise,
+        'n_mua': n_mua,
+        'n_su': n_su,
+        'n_excellent': n_excellent,
+    }
+
+
+def auto_curate_all(sorting_results: Dict[int, ChannelSortResult],
+                    config: AutoCurationConfig = None,
+                    sorting_config: SortingConfig = None,
+                    recording_duration: float = None,
+                    verbose: bool = True) -> Dict[str, Any]:
+    """
+    全チャンネルの自動キュレーション
+    
+    Parameters
+    ----------
+    sorting_results : dict {channel: ChannelSortResult}
+    config : AutoCurationConfig
+    sorting_config : SortingConfig
+    recording_duration : float or None
+    verbose : bool
+    
+    Returns
+    -------
+    summary : dict
+        'channel_reports': list of per-channel reports
+        'total_su', 'total_mua', 'total_noise', 'total_excellent'
+        'total_merged'
+    """
+    if config is None:
+        config = AutoCurationConfig()
+    if sorting_config is None:
+        sorting_config = SortingConfig()
+    
+    if verbose:
+        print("\n=== Auto-Curation ===")
+        print(f"  Criteria:")
+        print(f"    Noise:  SNR < {config.noise_snr_max}, "
+              f"ISI > {config.noise_isi_min}%, "
+              f"n < {config.noise_min_spikes}")
+        print(f"    MUA:    ISI > {config.mua_isi_min}%, "
+              f"or ISI > {config.mua_isi_soft}% & SNR < {config.mua_snr_max}")
+        print(f"    SU:     ISI < {config.su_good_isi_max}%, SNR > {config.su_good_snr_min}")
+        print(f"    Excell: ISI < {config.su_excellent_isi_max}%, SNR > {config.su_excellent_snr_min}")
+        if config.merge_enabled:
+            print(f"    Merge:  corr > {config.merge_waveform_corr_min}, "
+                  f"amp_ratio < {config.merge_amplitude_ratio_max}")
+    
+    reports = []
+    for ch in sorted(sorting_results.keys()):
+        report = auto_curate_channel(
+            sorting_results[ch], config, sorting_config,
+            recording_duration, verbose
+        )
+        reports.append(report)
+    
+    total_su = sum(r['n_su'] for r in reports)
+    total_mua = sum(r['n_mua'] for r in reports)
+    total_noise = sum(r['n_noise'] for r in reports)
+    total_excellent = sum(r['n_excellent'] for r in reports)
+    total_merged = sum(len(r['merged_pairs']) for r in reports)
+    
+    if verbose:
+        print(f"\n  === Auto-Curation Summary ===")
+        print(f"  Single Units:    {total_su} ({total_excellent} excellent)")
+        print(f"  Multi-Units:     {total_mua}")
+        print(f"  Noise:           {total_noise}")
+        print(f"  Pairs merged:    {total_merged}")
+    
+    return {
+        'channel_reports': reports,
+        'total_su': total_su,
+        'total_mua': total_mua,
+        'total_noise': total_noise,
+        'total_excellent': total_excellent,
+        'total_merged': total_merged,
+    }
+
+
 # ============================================================
 # フィルタリング
 # ============================================================
