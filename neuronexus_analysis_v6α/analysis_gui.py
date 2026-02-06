@@ -185,6 +185,10 @@ class AnalysisExplorerGUI:
                                relief='sunken', anchor='w')
         status_bar.pack(fill='x', side='bottom', padx=4, pady=2)
 
+        # ★ タブ切り替え時に初回描画をトリガー
+        self.notebook.bind('<<NotebookTabChanged>>', self._on_tab_changed)
+        self._integ_initialized = False
+
     # ============================================================
     # Tab 1: スパイク概要
     # ============================================================
@@ -622,6 +626,7 @@ class AnalysisExplorerGUI:
         mode_frame.pack(fill='x', padx=5, pady=5)
 
         self.lfp_mode_var = tk.StringVar(value="all_channels")
+        self._lfp_draw_pending = False  # 重複描画防止フラグ
         modes = [
             ("全チャンネル波形", "all_channels"),
             ("パワースペクトル", "power_spectrum"),
@@ -632,8 +637,10 @@ class AnalysisExplorerGUI:
         ]
         for text, val in modes:
             ttk.Radiobutton(mode_frame, text=text, value=val,
-                            variable=self.lfp_mode_var,
-                            command=self._draw_lfp).pack(anchor='w', padx=10, pady=2)
+                            variable=self.lfp_mode_var).pack(anchor='w', padx=10, pady=2)
+
+        # ★ trace_add で変数変更を確実に検知 (command= の代わり)
+        self.lfp_mode_var.trace_add("write", self._on_lfp_mode_changed)
 
         ttk.Button(mode_frame, text="▶ 再描画",
                    command=self._draw_lfp).pack(fill='x', padx=10, pady=5)
@@ -649,15 +656,19 @@ class AnalysisExplorerGUI:
         row_f.pack(fill='x', padx=5, pady=2)
         ttk.Label(row_f, text="Start:").pack(side='left')
         self.lfp_t_start_var = tk.StringVar(value="0")
-        ttk.Entry(row_f, textvariable=self.lfp_t_start_var, width=8).pack(side='left', padx=5)
+        e_start = ttk.Entry(row_f, textvariable=self.lfp_t_start_var, width=8)
+        e_start.pack(side='left', padx=5)
+        e_start.bind('<Return>', lambda e: self._draw_lfp())  # ★ Enterで再描画
 
         row_f2 = ttk.Frame(time_frame)
         row_f2.pack(fill='x', padx=5, pady=2)
         ttk.Label(row_f2, text="End:").pack(side='left')
         self.lfp_t_end_var = tk.StringVar(value=f"{t_default_end:.1f}")
-        ttk.Entry(row_f2, textvariable=self.lfp_t_end_var, width=8).pack(side='left', padx=5)
+        e_end = ttk.Entry(row_f2, textvariable=self.lfp_t_end_var, width=8)
+        e_end.pack(side='left', padx=5)
+        e_end.bind('<Return>', lambda e: self._draw_lfp())  # ★ Enterで再描画
 
-        ttk.Label(time_frame, text=f"(max: {t_max:.1f}s)",
+        ttk.Label(time_frame, text=f"(max: {t_max:.1f}s)  Enter で反映",
                   font=('', 8), foreground='gray').pack(padx=5, pady=2)
 
         # チャンネル選択
@@ -687,14 +698,13 @@ class AnalysisExplorerGUI:
                      values=['Standard', 'High Gamma', 'Rodent', 'Simple'],
                      state='readonly', width=14).pack(padx=10, pady=5)
 
-        # 振幅スケール
+        # 振幅スケール（trace_add で切り替え時に即反映）
         amp_frame = ttk.LabelFrame(left, text="振幅スケール (µV)")
         amp_frame.pack(fill='x', padx=5, pady=5)
         self.lfp_amp_var = tk.StringVar(value="auto")
-        ttk.Radiobutton(amp_frame, text="自動", value="auto",
-                        variable=self.lfp_amp_var).pack(anchor='w', padx=10, pady=1)
-        for val in ["100", "200", "500", "1000"]:
-            ttk.Radiobutton(amp_frame, text=val, value=val,
+        for val_text, val in [("自動", "auto"), ("100", "100"), ("200", "200"),
+                               ("500", "500"), ("1000", "1000")]:
+            ttk.Radiobutton(amp_frame, text=val_text, value=val,
                             variable=self.lfp_amp_var).pack(anchor='w', padx=10, pady=1)
 
         # --- 右: プロット ---
@@ -703,6 +713,46 @@ class AnalysisExplorerGUI:
 
         self.lfp_plot = PlotPanel(right, figsize=(12, 8), dpi=90)
         self.lfp_plot.pack(fill='both', expand=True)
+
+        # ★ LFPタブの初回描画フラグ
+        self._lfp_initialized = False
+
+    # --- trace_add コールバック (プラットフォーム非依存) ---
+
+    def _on_tab_changed(self, event):
+        """タブ切り替え時: LFP/統合タブの初回描画をトリガー"""
+        try:
+            idx = self.notebook.index(self.notebook.select())
+        except Exception:
+            return
+        # Tab 1 = LFP (index 1)
+        if idx == 1 and not self._lfp_initialized:
+            self._lfp_initialized = True
+            self.root.after(100, self._draw_lfp)
+        # Tab 2 = 統合 (index 2)
+        elif idx == 2 and not self._integ_initialized:
+            self._integ_initialized = True
+            self.root.after(100, self._draw_integrated)
+
+    def _on_lfp_mode_changed(self, *args):
+        """LFPモードのStringVarが変わったら再描画（after で1回に束ねる）"""
+        if not self._lfp_draw_pending:
+            self._lfp_draw_pending = True
+            self.root.after(50, self._deferred_draw_lfp)
+
+    def _deferred_draw_lfp(self):
+        self._lfp_draw_pending = False
+        self._draw_lfp()
+
+    def _on_integ_mode_changed(self, *args):
+        """統合解析モードのStringVarが変わったら再描画"""
+        if not self._integ_draw_pending:
+            self._integ_draw_pending = True
+            self.root.after(50, self._deferred_draw_integ)
+
+    def _deferred_draw_integ(self):
+        self._integ_draw_pending = False
+        self._draw_integrated()
 
     def _get_lfp_t_range(self):
         try:
@@ -1173,6 +1223,7 @@ class AnalysisExplorerGUI:
         mode_frame.pack(fill='x', padx=5, pady=5)
 
         self.integ_mode_var = tk.StringVar(value="grand_summary")
+        self._integ_draw_pending = False  # 重複描画防止フラグ
         modes = [
             ("グランドサマリー", "grand_summary"),
             ("位相ロック × 深度", "pl_depth"),
@@ -1183,8 +1234,10 @@ class AnalysisExplorerGUI:
         ]
         for text, val in modes:
             ttk.Radiobutton(mode_frame, text=text, value=val,
-                            variable=self.integ_mode_var,
-                            command=self._draw_integrated).pack(anchor='w', padx=10, pady=2)
+                            variable=self.integ_mode_var).pack(anchor='w', padx=10, pady=2)
+
+        # ★ trace_add で変数変更を確実に検知
+        self.integ_mode_var.trace_add("write", self._on_integ_mode_changed)
 
         ttk.Button(mode_frame, text="▶ 再描画",
                    command=self._draw_integrated).pack(fill='x', padx=10, pady=5)

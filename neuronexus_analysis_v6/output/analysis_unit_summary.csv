@@ -1,4 +1,0 @@
-unit_key,channel,unit_id,is_mua,n_spikes,snr,isi_violation,best_band,best_mrl,best_phase_deg,best_significant
-ch0_unit1,0,1,True,141,2.54,3.57,delta,0.1962,102.0,True
-ch0_unit2,0,2,True,220,3.05,4.11,delta,0.1844,152.8,True
-ch0_unit3,0,3,False,406,4.43,0.00,delta,0.1693,160.5,True

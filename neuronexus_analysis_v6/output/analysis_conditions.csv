@@ -1,2 +1,0 @@
-unit_key,channel,unit_id,condition,n_spikes,mrl,ppc,p_value,preferred_phase_deg,significant
-ch0_unit2,0,2,stim,29,0.0280,-0.0349,0.977872,88.5,False
