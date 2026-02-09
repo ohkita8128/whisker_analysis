@@ -13,7 +13,8 @@ import numpy as np
 import json
 import os
 import matplotlib
-matplotlib.use('TkAgg')
+if matplotlib.get_backend() == '' or matplotlib.get_backend().lower() == 'agg':
+    matplotlib.use('TkAgg')
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib.figure import Figure
 from typing import Dict, List, Optional
@@ -105,7 +106,7 @@ class SpikeSortGUI:
             key, label, default = item
             ttk.Label(lf, text=label, font=('', 8)).grid(
                 row=row, column=0, sticky='w', padx=10, pady=1)
-            var = tk.StringVar(value=str(default))
+            var = tk.StringVar(master=self.root, value=str(default))
             self.cfg_vars[key] = var
             ttk.Entry(lf, textvariable=var, width=8).grid(
                 row=row, column=1, sticky='w', pady=1)
@@ -127,7 +128,7 @@ class SpikeSortGUI:
         ctrl.pack(fill='x', padx=5, pady=3)
 
         ttk.Label(ctrl, text="Channel:").pack(side='left', padx=3)
-        self.ch_var = tk.StringVar()
+        self.ch_var = tk.StringVar(master=self.root)
         self.ch_combo = ttk.Combobox(ctrl, textvariable=self.ch_var,
                                       state='readonly', width=10)
         self.ch_combo.pack(side='left', padx=3)
@@ -137,7 +138,7 @@ class SpikeSortGUI:
 
         ttk.Separator(ctrl, orient='vertical').pack(side='left', fill='y', padx=8)
         ttk.Label(ctrl, text="Re-cluster:").pack(side='left')
-        self.nclust_var = tk.StringVar(value="4")
+        self.nclust_var = tk.StringVar(master=self.root, value="4")
         ttk.Spinbox(ctrl, from_=1, to=10, width=4,
                      textvariable=self.nclust_var).pack(side='left', padx=2)
         ttk.Button(ctrl, text="Re-cluster", command=self._recluster).pack(side='left', padx=3)
@@ -177,7 +178,7 @@ class SpikeSortGUI:
                           ("Unmark MUA", self._unmark_mua)]:
             ttk.Button(af, text=text, command=cmd, width=10).pack(pady=1, padx=3)
 
-        self.status_var = tk.StringVar(value="Ready")
+        self.status_var = tk.StringVar(master=self.root, value="Ready")
         ttk.Label(parent, textvariable=self.status_var, relief='sunken').pack(
             fill='x', side='bottom')
 
@@ -413,6 +414,7 @@ class SpikeSortGUI:
 
     def _finish(self):
         if messagebox.askyesno("確認", "スパイクソーティングを完了しますか?"):
+            self.root.quit()
             self.root.destroy()
             if self.on_done:
                 self.on_done(self.results)

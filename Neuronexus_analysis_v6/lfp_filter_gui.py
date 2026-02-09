@@ -17,7 +17,8 @@ import os
 from dataclasses import dataclass, field, asdict
 from typing import Optional, List, Tuple, Dict, Any
 import matplotlib
-matplotlib.use('TkAgg')
+if matplotlib.get_backend() == '' or matplotlib.get_backend().lower() == 'agg':
+    matplotlib.use('TkAgg')
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib.figure import Figure
 
@@ -125,7 +126,7 @@ class BandEditorFrame(ttk.LabelFrame):
         top = ttk.Frame(self)
         top.pack(fill='x', padx=5, pady=3)
         ttk.Label(top, text="プリセット:").pack(side='left')
-        self.preset_var = tk.StringVar(value="Standard")
+        self.preset_var = tk.StringVar(master=self, value="Standard")
         combo = ttk.Combobox(top, textvariable=self.preset_var,
                              values=list(self.PRESETS.keys()),
                              state='readonly', width=12)
@@ -164,12 +165,12 @@ class BandEditorFrame(ttk.LabelFrame):
         f = ttk.Frame(self.list_frame)
         f.pack(fill='x', pady=1)
         tk.Label(f, bg=color, width=2, height=1).pack(side='left', padx=2)
-        nv = tk.StringVar(value=name)
+        nv = tk.StringVar(master=self, value=name)
         ttk.Entry(f, textvariable=nv, width=10).pack(side='left', padx=2)
-        lv = tk.DoubleVar(value=lo)
+        lv = tk.DoubleVar(master=self, value=lo)
         ttk.Entry(f, textvariable=lv, width=6).pack(side='left', padx=1)
         ttk.Label(f, text="~").pack(side='left')
-        hv = tk.DoubleVar(value=hi)
+        hv = tk.DoubleVar(master=self, value=hi)
         ttk.Entry(f, textvariable=hv, width=6).pack(side='left', padx=1)
         ttk.Label(f, text="Hz").pack(side='left', padx=2)
         ttk.Button(f, text="✕", width=2,
@@ -619,7 +620,10 @@ class LfpFilterGUI:
     # ============================
     def get_config(self) -> LfpConfig:
         kwargs = {}
+        valid_keys = set(LfpConfig.__dataclass_fields__.keys())
         for key, info in self.vars.items():
+            if key not in valid_keys:
+                continue
             try:
                 v = info['var'].get()
                 t = info['type']
@@ -669,6 +673,7 @@ class LfpFilterGUI:
             return
 
         self._save_config()
+        self.root.quit()
         self.root.destroy()
 
         if self.on_done:
@@ -686,8 +691,9 @@ class LfpFilterGUI:
         try:
             with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
                 json.dump(d, f, indent=2, ensure_ascii=False)
+            messagebox.showinfo("保存完了", f"設定を保存しました\n{CONFIG_FILE}")
         except Exception as e:
-            print(f"設定保存エラー: {e}")
+            messagebox.showerror("保存エラー", f"設定保存に失敗しました:\n{e}")
 
     def _load_config(self):
         if not os.path.exists(CONFIG_FILE):
@@ -741,7 +747,8 @@ class LfpFilterGUI:
 
         def _wheel(event):
             c.yview_scroll(int(-1 * (event.delta / 120)), 'units')
-        c.bind_all('<MouseWheel>', _wheel)
+        c.bind('<MouseWheel>', _wheel)
+        sf.bind('<MouseWheel>', _wheel)
         sb.pack(side='right', fill='y')
         c.pack(side='left', fill='both', expand=True)
         return sf
@@ -754,14 +761,14 @@ class LfpFilterGUI:
         return row + 2
 
     def _check(self, parent, key, label, row, default=True):
-        var = tk.BooleanVar(value=default)
+        var = tk.BooleanVar(master=self.root, value=default)
         self.vars[key] = {'var': var, 'type': 'bool', 'default': default}
         ttk.Checkbutton(parent, text=label, variable=var).grid(
             row=row, column=0, columnspan=2, sticky='w', padx=20, pady=2)
         return row + 1
 
     def _num(self, parent, key, label, row, default=0.0, is_int=False):
-        var = tk.StringVar(value=str(default))
+        var = tk.StringVar(master=self.root, value=str(default))
         self.vars[key] = {'var': var, 'type': 'int' if is_int else 'float', 'default': default}
         ttk.Label(parent, text=label).grid(row=row, column=0, sticky='w', padx=20, pady=2)
         ttk.Entry(parent, textvariable=var, width=10).grid(
@@ -769,7 +776,7 @@ class LfpFilterGUI:
         return row + 1
 
     def _text(self, parent, key, label, row, default=""):
-        var = tk.StringVar(value=default)
+        var = tk.StringVar(master=self.root, value=default)
         self.vars[key] = {'var': var, 'type': 'str', 'default': default}
         ttk.Label(parent, text=label).grid(row=row, column=0, sticky='w', padx=20, pady=2)
         ttk.Entry(parent, textvariable=var, width=20).grid(
@@ -779,7 +786,7 @@ class LfpFilterGUI:
     def _combo(self, parent, key, label, row, options, default=None):
         if default is None:
             default = options[0]
-        var = tk.StringVar(value=default)
+        var = tk.StringVar(master=self.root, value=default)
         self.vars[key] = {'var': var, 'type': 'str', 'default': default}
         ttk.Label(parent, text=label).grid(row=row, column=0, sticky='w', padx=20, pady=2)
         ttk.Combobox(parent, textvariable=var, values=options,
@@ -787,7 +794,7 @@ class LfpFilterGUI:
         return row + 1
 
     def _file_input(self, parent, key, label, row, is_dir=False):
-        var = tk.StringVar(value="")
+        var = tk.StringVar(master=self.root, value="")
         self.vars[key] = {'var': var, 'type': 'str', 'default': ''}
         ttk.Label(parent, text=label).grid(row=row, column=0, sticky='w', padx=20, pady=2)
         ef = ttk.Frame(parent)

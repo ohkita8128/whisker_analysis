@@ -10,7 +10,8 @@ import numpy as np
 import json
 import os
 import matplotlib
-matplotlib.use('TkAgg')
+if matplotlib.get_backend() == '' or matplotlib.get_backend().lower() == 'agg':
+    matplotlib.use('TkAgg')
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib.figure import Figure
 from typing import Dict, Optional, Any
@@ -85,6 +86,9 @@ class PhaseGUI:
         self.condition_results = {}
         self.spike_data = None
 
+        # spike_resultsがあればsortedをデフォルトに
+        self._default_spike_source = 'sorted' if spike_results else 'plx'
+
         self.root = tk.Tk()
         self.root.title("Phase Locking Analysis GUI")
         self.root.geometry("1200x800")
@@ -123,7 +127,7 @@ class PhaseGUI:
             row=row, column=0, columnspan=2, sticky='w', padx=5, pady=(10, 3))
         row += 1
 
-        var_src = tk.StringVar(value='plx')
+        var_src = tk.StringVar(master=self.root, value=self._default_spike_source)
         self.vars['spike_source'] = var_src
         ttk.Label(sf, text="ソース:").grid(row=row, column=0, sticky='w', padx=15)
         src_combo = ttk.Combobox(sf, textvariable=var_src,
@@ -131,7 +135,7 @@ class PhaseGUI:
         src_combo.grid(row=row, column=1, sticky='w')
         row += 1
 
-        var_qf = tk.StringVar(value='sorted_only')
+        var_qf = tk.StringVar(master=self.root, value='sorted_only')
         self.vars['spike_quality_filter'] = var_qf
         ttk.Label(sf, text="品質フィルタ:").grid(row=row, column=0, sticky='w', padx=15)
         ttk.Combobox(sf, textvariable=var_qf,
@@ -145,13 +149,13 @@ class PhaseGUI:
         row += 1
 
         # Theta
-        self.theta_enabled = tk.BooleanVar(value=True)
+        self.theta_enabled = tk.BooleanVar(master=self.root, value=True)
         ttk.Checkbutton(sf, text="Theta", variable=self.theta_enabled).grid(
             row=row, column=0, sticky='w', padx=15)
         theta_f = ttk.Frame(sf)
         theta_f.grid(row=row, column=1, sticky='w')
-        self.theta_lo = tk.StringVar(value="4")
-        self.theta_hi = tk.StringVar(value="12")
+        self.theta_lo = tk.StringVar(master=self.root, value="4")
+        self.theta_hi = tk.StringVar(master=self.root, value="12")
         ttk.Entry(theta_f, textvariable=self.theta_lo, width=4).pack(side='left')
         ttk.Label(theta_f, text="-").pack(side='left')
         ttk.Entry(theta_f, textvariable=self.theta_hi, width=4).pack(side='left')
@@ -159,13 +163,13 @@ class PhaseGUI:
         row += 1
 
         # Gamma
-        self.gamma_enabled = tk.BooleanVar(value=True)
+        self.gamma_enabled = tk.BooleanVar(master=self.root, value=True)
         ttk.Checkbutton(sf, text="Gamma", variable=self.gamma_enabled).grid(
             row=row, column=0, sticky='w', padx=15)
         gamma_f = ttk.Frame(sf)
         gamma_f.grid(row=row, column=1, sticky='w')
-        self.gamma_lo = tk.StringVar(value="30")
-        self.gamma_hi = tk.StringVar(value="80")
+        self.gamma_lo = tk.StringVar(master=self.root, value="30")
+        self.gamma_hi = tk.StringVar(master=self.root, value="80")
         ttk.Entry(gamma_f, textvariable=self.gamma_lo, width=4).pack(side='left')
         ttk.Label(gamma_f, text="-").pack(side='left')
         ttk.Entry(gamma_f, textvariable=self.gamma_hi, width=4).pack(side='left')
@@ -173,13 +177,13 @@ class PhaseGUI:
         row += 1
 
         # Beta (optional)
-        self.beta_enabled = tk.BooleanVar(value=False)
+        self.beta_enabled = tk.BooleanVar(master=self.root, value=False)
         ttk.Checkbutton(sf, text="Beta", variable=self.beta_enabled).grid(
             row=row, column=0, sticky='w', padx=15)
         beta_f = ttk.Frame(sf)
         beta_f.grid(row=row, column=1, sticky='w')
-        self.beta_lo = tk.StringVar(value="14")
-        self.beta_hi = tk.StringVar(value="30")
+        self.beta_lo = tk.StringVar(master=self.root, value="14")
+        self.beta_hi = tk.StringVar(master=self.root, value="30")
         ttk.Entry(beta_f, textvariable=self.beta_lo, width=4).pack(side='left')
         ttk.Label(beta_f, text="-").pack(side='left')
         ttk.Entry(beta_f, textvariable=self.beta_hi, width=4).pack(side='left')
@@ -197,13 +201,13 @@ class PhaseGUI:
             ("stim_artifact_window", "アーティファクト除外 (秒)", "0.005"),
         ]
         for key, label, default in params:
-            var = tk.StringVar(value=default)
+            var = tk.StringVar(master=self.root, value=default)
             self.vars[key] = var
             ttk.Label(sf, text=label, font=('', 8)).grid(row=row, column=0, sticky='w', padx=15)
             ttk.Entry(sf, textvariable=var, width=8).grid(row=row, column=1, sticky='w')
             row += 1
 
-        self.cond_var = tk.BooleanVar(value=True)
+        self.cond_var = tk.BooleanVar(master=self.root, value=True)
         ttk.Checkbutton(sf, text="条件別解析 (base/stim/post)",
                         variable=self.cond_var).grid(
             row=row, column=0, columnspan=2, sticky='w', padx=15, pady=3)
@@ -214,8 +218,8 @@ class PhaseGUI:
             row=row, column=0, columnspan=2, sticky='w', padx=5, pady=(10, 3))
         row += 1
 
-        self.save_plots_var = tk.BooleanVar(value=True)
-        self.save_csv_var = tk.BooleanVar(value=True)
+        self.save_plots_var = tk.BooleanVar(master=self.root, value=True)
+        self.save_csv_var = tk.BooleanVar(master=self.root, value=True)
         ttk.Checkbutton(sf, text="プロット保存", variable=self.save_plots_var).grid(
             row=row, column=0, columnspan=2, sticky='w', padx=15)
         row += 1
@@ -245,7 +249,7 @@ class PhaseGUI:
         tb.pack(fill='x')
         NavigationToolbar2Tk(self.result_canvas, tb)
 
-        self.result_status = tk.StringVar(value="解析未実行")
+        self.result_status = tk.StringVar(master=self.root, value="解析未実行")
         ttk.Label(parent, textvariable=self.result_status, relief='sunken').pack(
             fill='x', side='bottom')
 
@@ -299,7 +303,7 @@ class PhaseGUI:
             self.spike_data = load_spike_data(
                 self.segment, quality_filter=quality_filter, verbose=True)
         elif spike_source == 'sorted' and self.spike_results is not None:
-            self.spike_data = self._convert_sorting_to_spike_data()
+            self.spike_data = self._convert_sorting_to_spike_data(quality_filter)
         else:
             messagebox.showwarning("Warning", "スパイクデータが利用不可")
             return
@@ -352,7 +356,7 @@ class PhaseGUI:
         # プレビュー表示
         self._show_preview()
 
-    def _convert_sorting_to_spike_data(self):
+    def _convert_sorting_to_spike_data(self, quality_filter='all'):
         """スパイクソーティング結果を spike_processing 形式に変換"""
         from spike_processing import UnitInfo
         unit_info_list = []
@@ -361,6 +365,11 @@ class PhaseGUI:
         for ch, result in self.spike_results.items():
             for unit in result.units:
                 if unit.is_noise:
+                    continue
+                # quality_filterに応じたフィルタリング
+                if quality_filter == 'sorted_only' and unit.is_mua:
+                    continue
+                if quality_filter == 'mua' and not unit.is_mua:
                     continue
                 key = f"ch{ch}_unit{unit.unit_id}"
                 spike_times_dict[key] = unit.spike_times
@@ -458,6 +467,7 @@ class PhaseGUI:
                 self.output_dir, self.basename)
 
     def _finish(self):
+        self.root.quit()
         self.root.destroy()
         if self.on_done:
             self.on_done(self.phase_results, self.condition_results)
@@ -491,6 +501,9 @@ class PhaseGUI:
                 d = json.load(f)
             for k, v in d.items():
                 if k in self.vars:
+                    # スパイクソート結果がある場合、spike_sourceを上書きしない
+                    if k == 'spike_source' and self.spike_results:
+                        continue
                     self.vars[k].set(v)
             if 'theta_enabled' in d:
                 self.theta_enabled.set(d['theta_enabled'])

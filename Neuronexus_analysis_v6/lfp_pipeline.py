@@ -35,8 +35,8 @@ def run_lfp_pipeline(config: LfpConfig, plx_data: PlxData,
     )
     from lfp_plotting import (
         plot_processing_overview, plot_fft_comparison,
-        plot_power_summary, plot_ica_components,
-        plot_all_channels_with_regions
+        plot_power_analysis, plot_channel_heatmap,
+        plot_ica_components, plot_all_channels_with_regions
     )
     from saving import save_summary_csv, save_channel_csv
 
@@ -188,14 +188,29 @@ def run_lfp_pipeline(config: LfpConfig, plx_data: PlxData,
 
     from lfp_processing import get_stim_events, create_stim_mask
     _, stim_times = get_stim_events(plx_data.segment.events, verbose=verbose)
-    stim_sessions = stim_times.reshape(config.n_sessions, config.n_stim_per_session)
-    session_ranges = [(s[0], s[-1]) for s in stim_sessions]
 
-    stim_mask = create_stim_mask(lfp_times, session_ranges)
+    if stim_times is None or len(stim_times) == 0:
+        log("  警告: 刺激イベントが見つかりません。パワー解析をスキップします。")
+        stim_times = np.array([])
+        session_ranges = []
+    else:
+        expected = config.n_sessions * config.n_stim_per_session
+        if len(stim_times) != expected:
+            log(f"  警告: 刺激数 ({len(stim_times)}) != n_sessions*n_stim ({expected})")
+            log(f"  n_sessions={config.n_sessions}, n_stim_per_session={config.n_stim_per_session}")
+            # 実際の刺激数からセッション数を再推定
+            if config.n_stim_per_session > 0:
+                config.n_sessions = len(stim_times) // config.n_stim_per_session
+                stim_times = stim_times[:config.n_sessions * config.n_stim_per_session]
+                log(f"  再推定: n_sessions={config.n_sessions}, 使用刺激数={len(stim_times)}")
+        stim_sessions = stim_times.reshape(config.n_sessions, config.n_stim_per_session)
+        session_ranges = [(s[0], s[-1]) for s in stim_sessions]
+
+    stim_mask = create_stim_mask(lfp_times, session_ranges) if session_ranges else np.zeros(len(lfp_times), dtype=bool)
     baseline_ranges = [(s - config.baseline_pre_sec, s) for s, _ in session_ranges]
-    baseline_mask = create_stim_mask(lfp_times, baseline_ranges, margin=0)
+    baseline_mask = create_stim_mask(lfp_times, baseline_ranges, margin=0) if baseline_ranges else np.zeros(len(lfp_times), dtype=bool)
     post_ranges = [(e, e + config.post_duration_sec) for _, e in session_ranges]
-    post_mask = create_stim_mask(lfp_times, post_ranges, margin=0)
+    post_mask = create_stim_mask(lfp_times, post_ranges, margin=0) if post_ranges else np.zeros(len(lfp_times), dtype=bool)
 
     clean_baseline = baseline_mask & ~noise_mask
     clean_stim = stim_mask & ~noise_mask
@@ -250,12 +265,25 @@ def run_lfp_pipeline(config: LfpConfig, plx_data: PlxData,
             removed_ics, output_dir, basename,
             t_start=t_s, t_end=t_e, show=config.show_plots, save=config.save_plots)
 
-    plot_power_summary(
+    # パワー解析 (v4.6スタイル: PSD + 変化率曲線 + 棒グラフ)
+    change_stim_list = [((s - b) / max(b, 1e-10) * 100)
+                        for b, s in zip(baseline_power, stim_power)]
+    change_post_list = [((p - b) / max(b, 1e-10) * 100)
+                        for b, p in zip(baseline_power, post_power)]
+
+    plot_power_analysis(
         freqs, psd_baseline, psd_stim, psd_post,
         config.bands, baseline_power, stim_power, post_power,
-        change_stim_ch, change_post_ch, original_ch_numbers,
+        change_stim_list, change_post_list,
         output_dir, basename,
-        freq_min=config.power_freq_min, freq_max=config.power_freq_max,
+        power_freq_min=config.power_freq_min,
+        power_freq_max=config.power_freq_max,
+        show=config.show_plots, save=config.save_plots)
+
+    # チャンネル別ヒートマップ (v4.6スタイル: seaborn + 数値注釈)
+    plot_channel_heatmap(
+        change_stim_ch, change_post_ch, config.bands,
+        original_ch_numbers, output_dir, basename,
         show=config.show_plots, save=config.save_plots)
 
     plot_all_channels_with_regions(
@@ -284,8 +312,28 @@ def run_lfp_pipeline(config: LfpConfig, plx_data: PlxData,
         'freqs': freqs, 'psd_baseline': psd_baseline,
         'psd_stim': psd_stim, 'psd_post': psd_post,
         'bands': config.bands,
+        'channel_band_power': channel_band_power,
+        'change_stim_ch': change_stim_ch,
+        'change_post_ch': change_post_ch,
         'output_dir': output_dir, 'basename': basename,
     }
+
+    # CSV保存
+    log("\n  CSV保存...")
+    n_sync = min(len(plx_data.frame_times), plx_data.n_video_frames) if plx_data.frame_times is not None and len(plx_data.frame_times) > 0 else 0
+
+    save_summary_csv(
+        basename, fs, lfp_times_full, TRIM_START, TRIM_END,
+        plx_data.n_video_frames, n_sync, roi,
+        bad_channels, good_channels,
+        motion_threshold, noise_mask, removed_ics, noise_ratios,
+        config.n_sessions, config.n_stim_per_session, stim_times,
+        band_names, baseline_power, stim_power, post_power,
+        change_stim_list, change_post_list, output_dir)
+
+    save_channel_csv(
+        basename, n_channels, original_ch_numbers, band_names,
+        channel_band_power, change_stim_ch, change_post_ch, output_dir)
 
     log("\n=== LFPパイプライン完了 ===")
     return results

@@ -104,6 +104,10 @@ class SortingConfig:
     # 品質基準
     isi_violation_threshold_ms: float = 2.0  # 不応期
 
+    # MUA自動判定
+    mua_isi_threshold: float = 5.0     # ISI違反率がこの%を超えたらMUA
+    mua_snr_threshold: float = 2.0     # SNRがこの値未満 かつ ISI違反ならMUA
+
 
 # ============================================================
 # フィルタリング
@@ -379,9 +383,14 @@ def sort_channel(data: np.ndarray, fs: float, channel: int,
         )
         
         unit = compute_unit_quality(unit, fs, config)
-        
+
+        # MUA自動判定: ISI違反率が高い or (ISI違反 + 低SNR)
+        if (unit.isi_violation_rate > config.mua_isi_threshold or
+                (unit.isi_violation_rate > 2.0 and unit.snr < config.mua_snr_threshold)):
+            unit.is_mua = True
+
         if verbose:
-            status = "✓" if unit.isi_violation_rate < 2 else "⚠"
+            status = "[MUA]" if unit.is_mua else ("✓" if unit.isi_violation_rate < 2 else "⚠")
             print(f"    Unit{unit.unit_id}: n={unit.n_spikes:4d}, "
                   f"amp={unit.mean_amplitude:.4f}, "
                   f"SNR={unit.snr:.1f}, "

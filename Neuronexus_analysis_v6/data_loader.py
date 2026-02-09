@@ -115,12 +115,16 @@ def load_plx(filepath: str,
             # チャンネル並び替え
             n_available = raw.shape[1]
             valid_order = [ch for ch in channel_order if ch < n_available]
-            data.lfp_raw = raw[:, valid_order]
-            data.lfp_fs = fs
-            data.n_channels = data.lfp_raw.shape[1]
-            data.lfp_times = np.arange(len(data.lfp_raw)) / fs
-            data.original_ch_numbers = valid_order
-            log(f"  LFP: {data.lfp_raw.shape}, fs={fs}Hz")
+            # より多チャンネルのLFPを優先
+            if data.lfp_raw is None or raw.shape[1] > data.lfp_raw.shape[1]:
+                data.lfp_raw = raw[:, valid_order]
+                data.lfp_fs = fs
+                data.n_channels = data.lfp_raw.shape[1]
+                data.lfp_times = np.arange(len(data.lfp_raw)) / fs
+                data.original_ch_numbers = valid_order
+                log(f"  LFP: {data.lfp_raw.shape}, fs={fs}Hz")
+            else:
+                log(f"  LFP (スキップ: {raw.shape[1]}ch < 既存{data.lfp_raw.shape[1]}ch)")
 
         elif load_wideband and fs >= 20000:
             # Wideband (高サンプリングレート)

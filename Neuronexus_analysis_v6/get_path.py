@@ -2,8 +2,8 @@ import tkinter as tk
 from tkinter import filedialog
 import os
 
-def get_path(file_type='all', mode='file', initial_dir=".", 
-             multiple=False, title=None):
+def get_path(file_type='all', mode='file', initial_dir=".",
+             multiple=False, title=None, init_dir=None):
     """
     ファイル/フォルダ選択の統合版
     
@@ -12,6 +12,10 @@ def get_path(file_type='all', mode='file', initial_dir=".",
     file_type: ファイルの種類
     multiple: 複数選択（modeが'file'の時のみ有効）
     """
+    # init_dir は initial_dir のエイリアス
+    if init_dir is not None:
+        initial_dir = init_dir
+
     filetypes_dict = {
         'excel': [("Excel Files", "*.xlsx *.xls"), ("All Files", "*.*")],
         'csv': [("CSV Files", "*.csv"), ("All Files", "*.*")],
@@ -21,10 +25,15 @@ def get_path(file_type='all', mode='file', initial_dir=".",
         'all': [("All Files", "*.*")]
     }
     
-    root = tk.Tk()
-    root.withdraw()
-    
-    top = tk.Toplevel()
+    # 既存のTkインスタンスがあればそれを使い、なければ新規作成
+    created_root = False
+    root = tk._default_root
+    if root is None or not root.winfo_exists():
+        root = tk.Tk()
+        root.withdraw()
+        created_root = True
+
+    top = tk.Toplevel(root)
     top.withdraw()
     top.attributes('-topmost', True)
     
@@ -83,7 +92,8 @@ def get_path(file_type='all', mode='file', initial_dir=".",
         result = result if result else None
     
     top.destroy()
-    root.destroy()
+    if created_root:
+        root.destroy()
     
     # 結果表示
     if result:
