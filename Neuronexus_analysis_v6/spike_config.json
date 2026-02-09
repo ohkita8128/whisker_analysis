@@ -1,0 +1,19 @@
+{
+  "filter_low": "300.0",
+  "filter_high": "3000.0",
+  "filter_order": "4",
+  "threshold_std": "4.0",
+  "min_spike_interval_ms": "1.0",
+  "artifact_threshold_std": "10.0",
+  "pre_spike_ms": "0.5",
+  "post_spike_ms": "1.0",
+  "n_pca_components": "3",
+  "max_clusters": "5",
+  "min_cluster_size": "20",
+  "isi_violation_threshold_ms": "2.0",
+  "mua_isi_threshold": "5.0",
+  "mua_snr_threshold": "2.0",
+  "channel_spacing_um": "25.0",
+  "n_templates": "4",
+  "_method": "KiloSort4"
+}

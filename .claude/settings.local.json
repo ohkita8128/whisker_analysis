@@ -16,7 +16,9 @@
       "Bash(nvidia-smi:*)",
       "Bash(C:/ProgramData/anaconda3/Scripts/conda.exe env list:*)",
       "Bash(C:/Users/wakel/anaconda3/envs/neoeeg/python.exe:*)",
-      "Bash(C:/Users/wakel/anaconda3/envs/neuropixels/python.exe:*)"
+      "Bash(C:/Users/wakel/anaconda3/envs/neuropixels/python.exe:*)",
+      "Bash(dir:*)",
+      "Bash(python3:*)"
     ]
   }
 }

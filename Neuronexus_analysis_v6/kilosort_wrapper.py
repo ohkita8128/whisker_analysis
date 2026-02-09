@@ -139,12 +139,27 @@ def run_kilosort_sorting(
     probe = create_linear_probe(n_channels, channel_spacing_um)
 
     # KiloSort4 設定
+    # n_pcs は n_templates と一致させる必要がある（KS4内部でtF配列とxfeatのshapeが不整合になるため）
     ks_settings = {
         'n_chan_bin': n_channels,
         'fs': fs,
         'batch_size': int(min(fs * 2, n_samples)),  # 2秒 or データ長
         'n_templates': n_templates,
+        'n_pcs': n_templates,
+        'nblocks': 0,  # ドリフト補正無効（16ch線形プローブでは不要・エラー回避）
     }
+
+    # 少チャンネル（≤32ch）向け自動調整
+    if n_channels <= 32:
+        ks_settings.update({
+            'whitening_range': min(n_channels, 16),    # デフォルト32はch数超過
+            'nearest_templates': 20,                    # デフォルト100は過剰
+            'max_channel_distance': channel_spacing_um * 3,  # 隣接3ch分の距離
+        })
+        if verbose:
+            print(f"  少チャンネル向け設定: whitening_range={ks_settings['whitening_range']}, "
+                  f"nearest_templates={ks_settings['nearest_templates']}, "
+                  f"max_channel_distance={ks_settings['max_channel_distance']}μm")
 
     # 結果保存ディレクトリ（最終コピー先）
     if output_dir:
