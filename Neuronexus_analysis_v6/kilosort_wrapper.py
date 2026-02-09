@@ -88,6 +88,7 @@ def run_kilosort_sorting(
     channels: List[int] = None,
     output_dir: str = "",
     channel_spacing_um: float = 25.0,
+    n_templates: int = 6,
     verbose: bool = True
 ) -> Dict[int, ChannelSortResult]:
     """
@@ -142,21 +143,28 @@ def run_kilosort_sorting(
         'n_chan_bin': n_channels,
         'fs': fs,
         'batch_size': int(min(fs * 2, n_samples)),  # 2秒 or データ長
+        'n_templates': n_templates,
     }
 
-    # 結果保存ディレクトリ
+    # 結果保存ディレクトリ（最終コピー先）
     if output_dir:
-        results_dir = Path(output_dir) / 'kilosort4'
+        final_results_dir = Path(output_dir) / 'kilosort4'
     else:
-        results_dir = Path(tempfile.mkdtemp()) / 'kilosort4'
+        final_results_dir = None
+
+    # KiloSort4はローカルパスで動作させる（UNCパス非対応のため）
+    local_tmpdir = tempfile.mkdtemp(prefix='ks4_')
+    results_dir = Path(local_tmpdir) / 'kilosort4'
     results_dir.mkdir(parents=True, exist_ok=True)
 
-    # ダミーバイナリファイルパス（file_objectを使うが filename は必須）
-    dummy_filename = results_dir / 'data.bin'
+    # バイナリファイルを実際に書き出す（KiloSort4 v4.1+ はファイル存在チェックする）
+    bin_filename = results_dir / 'data.bin'
+    data_int16.tofile(str(bin_filename))
 
     if verbose:
         print(f"KiloSort4 実行中...")
-        print(f"  結果保存先: {results_dir}")
+        print(f"  作業ディレクトリ: {results_dir}")
+        print(f"  バイナリファイル: {bin_filename} ({bin_filename.stat().st_size / 1e6:.1f} MB)")
 
     # KiloSort4 実行
     try:
@@ -172,7 +180,7 @@ def run_kilosort_sorting(
             run_kilosort(
                 settings=ks_settings,
                 probe=probe,
-                filename=dummy_filename,
+                filename=bin_filename,
                 file_object=data_int16,
                 results_dir=results_dir,
                 data_dtype='int16',
@@ -183,6 +191,20 @@ def run_kilosort_sorting(
     except Exception as e:
         print(f"KiloSort4 エラー: {e}")
         raise
+    finally:
+        # 一時バイナリファイルを削除
+        if bin_filename.exists():
+            bin_filename.unlink()
+
+    # 結果をネットワークドライブにコピー
+    if final_results_dir is not None:
+        import shutil
+        final_results_dir.mkdir(parents=True, exist_ok=True)
+        for f in results_dir.iterdir():
+            if f.is_file() and f.name != 'data.bin':
+                shutil.copy2(str(f), str(final_results_dir / f.name))
+        if verbose:
+            print(f"  結果コピー先: {final_results_dir}")
 
     if verbose:
         n_clusters = len(np.unique(clu))

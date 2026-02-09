@@ -127,6 +127,9 @@ class SpikeSortGUI:
             ("🏷 MUA自動判定", None),
             ("mua_isi_threshold", "MUA ISI違反率閾値 (%)", 5.0),
             ("mua_snr_threshold", "MUA SNR閾値", 2.0),
+            ("🔬 KiloSort4 設定", None),
+            ("channel_spacing_um", "チャンネル間隔 (μm)", 25.0),
+            ("n_templates", "テンプレート数", 6),
         ]
 
         row = row_method
@@ -257,9 +260,19 @@ class SpikeSortGUI:
         try:
             if method == 'KiloSort4':
                 from kilosort_wrapper import run_kilosort_sorting
+                try:
+                    spacing = float(self.cfg_vars['channel_spacing_um'].get())
+                except (KeyError, ValueError):
+                    spacing = 25.0
+                try:
+                    n_tmpl = int(self.cfg_vars['n_templates'].get())
+                except (KeyError, ValueError):
+                    n_tmpl = 6
                 self.results = run_kilosort_sorting(
                     self.wideband_data, self.fs, cfg,
-                    output_dir=self.output_dir, verbose=True)
+                    output_dir=self.output_dir,
+                    channel_spacing_um=spacing,
+                    n_templates=n_tmpl, verbose=True)
             else:
                 self.results = sort_all_channels(
                     self.wideband_data, self.fs, cfg, verbose=True)
