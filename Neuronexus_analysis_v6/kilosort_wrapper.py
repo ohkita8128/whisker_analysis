@@ -203,6 +203,19 @@ def run_kilosort_sorting(
                 device=device,
                 verbose_console=verbose,
             )
+
+        # KiloSort4の出力をNumPy配列に変換（PyTorchテンソルのままだとnp.sum等でエラー）
+        def _to_numpy(x):
+            if hasattr(x, 'cpu'):
+                return x.cpu().numpy()
+            return np.asarray(x)
+
+        st = _to_numpy(st)
+        clu = _to_numpy(clu)
+        tF = _to_numpy(tF)
+        Wall = _to_numpy(Wall)
+        is_ref = _to_numpy(is_ref)
+        est_contam_rate = _to_numpy(est_contam_rate)
     except Exception as e:
         print(f"KiloSort4 エラー: {e}")
         raise
