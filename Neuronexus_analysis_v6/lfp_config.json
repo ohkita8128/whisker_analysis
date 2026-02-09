@@ -1,6 +1,6 @@
 {
   "plx_file": "//Nagoya_AMCBNAS2/wakelab7/okita/whisker_analysis/20260114-1_Wildtype_S1BF/260114-4_Wildtype_S1BF_920_wisker/260114-4_Wildtype_S1BF_920_wisker.plx",
-  "output_dir": "//Nagoya_AMCBNAS2/wakelab7/okita/whisker_analysis/20260114-1_Wildtype_S1BF/260114-4_Wildtype_S1BF_920_wisker",
+  "output_dir": "//Nagoya_AMCBNAS2/wakelab7/okita/whisker_analysis/20260114-1_Wildtype_S1BF/0209解析/１",
   "filter_enabled": true,
   "filter_type": "fir",
   "filter_lowcut": "0.1",

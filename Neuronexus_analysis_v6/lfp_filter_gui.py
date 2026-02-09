@@ -672,7 +672,6 @@ class LfpFilterGUI:
         if not messagebox.askyesno("確認", msg):
             return
 
-        self._save_config()
         self.root.quit()
         self.root.destroy()
 

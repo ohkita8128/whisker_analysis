@@ -6,7 +6,10 @@
       "Bash(find:*)",
       "Read",
       "Grep",
-      "Glob"
+      "Glob",
+      "WebSearch",
+      "WebFetch(domain:kilosort.readthedocs.io)",
+      "WebFetch(domain:github.com)"
     ]
   }
 }

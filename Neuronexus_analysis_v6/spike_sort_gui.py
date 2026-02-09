@@ -75,6 +75,38 @@ class SpikeSortGUI:
 
         self.cfg_vars = {}
 
+        # --- ソーティング手法選択 ---
+        row_method = 0
+        ttk.Label(lf, text="🧪 ソーティング手法", font=('', 9, 'bold')).grid(
+            row=row_method, column=0, columnspan=2, sticky='w', pady=(8, 2), padx=5)
+        row_method += 1
+
+        # KiloSort4 利用可能チェック
+        try:
+            from kilosort_wrapper import is_kilosort_available
+            ks_available = is_kilosort_available()
+        except Exception:
+            ks_available = False
+
+        methods = ['GMM (内蔵)']
+        if ks_available:
+            methods.append('KiloSort4')
+
+        self.method_var = tk.StringVar(master=self.root, value='GMM (内蔵)')
+        ttk.Label(lf, text="手法", font=('', 8)).grid(
+            row=row_method, column=0, sticky='w', padx=10, pady=1)
+        method_combo = ttk.Combobox(lf, textvariable=self.method_var,
+                                     values=methods, state='readonly', width=12)
+        method_combo.grid(row=row_method, column=1, sticky='w', pady=1)
+        row_method += 1
+
+        if not ks_available:
+            ttk.Label(lf, text="(KiloSort4 未インストール)", font=('', 7),
+                      foreground='gray').grid(
+                row=row_method, column=0, columnspan=2, sticky='w', padx=10)
+            row_method += 1
+
+        # --- パラメータリスト（row_method 以降に配置） ---
         params = [
             ("🔧 フィルタ", None),
             ("filter_low", "ハイパス (Hz)", 300.0),
@@ -92,9 +124,12 @@ class SpikeSortGUI:
             ("max_clusters", "最大クラスタ数", 5),
             ("min_cluster_size", "最小クラスタサイズ", 20),
             ("isi_violation_threshold_ms", "ISI不応期 (ms)", 2.0),
+            ("🏷 MUA自動判定", None),
+            ("mua_isi_threshold", "MUA ISI違反率閾値 (%)", 5.0),
+            ("mua_snr_threshold", "MUA SNR閾値", 2.0),
         ]
 
-        row = 0
+        row = row_method
         for item in params:
             if item[1] is None:
                 # セクションヘッダー
@@ -203,7 +238,11 @@ class SpikeSortGUI:
             return
 
         cfg = self._get_sorting_config()
+        method = self.method_var.get()
+        method_label = method
+
         msg = (f"全チャンネルのスパイクソーティングを実行します\n\n"
+               f"手法: {method_label}\n"
                f"フィルタ: {cfg.filter_low}-{cfg.filter_high} Hz\n"
                f"閾値: {cfg.threshold_std}σ\n"
                f"最大クラスタ: {cfg.max_clusters}\n"
@@ -212,15 +251,27 @@ class SpikeSortGUI:
         if not messagebox.askyesno("確認", msg):
             return
 
-        self.status_var.set("ソーティング実行中...")
+        self.status_var.set(f"ソーティング実行中 ({method_label})...")
         self.root.update()
 
-        self.results = sort_all_channels(
-            self.wideband_data, self.fs, cfg, verbose=True)
+        try:
+            if method == 'KiloSort4':
+                from kilosort_wrapper import run_kilosort_sorting
+                self.results = run_kilosort_sorting(
+                    self.wideband_data, self.fs, cfg,
+                    output_dir=self.output_dir, verbose=True)
+            else:
+                self.results = sort_all_channels(
+                    self.wideband_data, self.fs, cfg, verbose=True)
+        except Exception as e:
+            messagebox.showerror("エラー", f"ソーティング中にエラーが発生しました:\n{e}")
+            self.status_var.set("エラー")
+            return
 
         self._update_channel_list()
         self._update_display()
-        self.status_var.set(f"完了 - {sum(len(r.units) for r in self.results.values())} units")
+        total_units = sum(len(r.units) for r in self.results.values())
+        self.status_var.set(f"完了 ({method_label}) - {total_units} units")
 
     # ============================
     # 表示更新
@@ -424,6 +475,7 @@ class SpikeSortGUI:
     # ============================
     def _save_cfg(self):
         d = {k: v.get() for k, v in self.cfg_vars.items()}
+        d['_method'] = self.method_var.get()
         try:
             with open(SPIKE_CONFIG_FILE, 'w') as f:
                 json.dump(d, f, indent=2)
@@ -439,6 +491,14 @@ class SpikeSortGUI:
             for k, v in d.items():
                 if k in self.cfg_vars:
                     self.cfg_vars[k].set(v)
+            # 手法の復元（KiloSort4は利用可能な場合のみ）
+            if '_method' in d and d['_method'] == 'KiloSort4':
+                try:
+                    from kilosort_wrapper import is_kilosort_available
+                    if is_kilosort_available():
+                        self.method_var.set('KiloSort4')
+                except Exception:
+                    pass
         except:
             pass
 
