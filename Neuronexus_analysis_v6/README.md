@@ -43,7 +43,9 @@ PLX読み込み → LFP Filter GUI → Spike Sorting GUI → Phase Locking GUI
 
 ```
 Neuronexus_analysis_v6/
-├── main.py                 # メインオーケストレータ
+├── main.ipynb              # メインノートブック（推奨）
+├── main.py                 # メインオーケストレータ（CLI版）
+├── numpy_compat.py         # NumPy 2.0+ 互換パッチ
 ├── data_loader.py          # PLXデータ読み込み
 │
 ├── lfp_filter_gui.py       # LFPフィルタリングGUI
@@ -73,18 +75,16 @@ Neuronexus_analysis_v6/
 
 ## 使い方
 
-### GUI実行（推奨）
+### Jupyter Notebook（推奨）
 ```bash
-python main.py
+jupyter notebook main.ipynb
 ```
+ノートブック冒頭の設定セルでPLXファイルパスやステップのON/OFFを指定し、上から順にセルを実行してください。
 
-### PLXファイル指定
+### コマンドライン実行
 ```bash
-python main.py --plx /path/to/file.plx
-```
-
-### 特定ステップをスキップ
-```bash
+python main.py                                # GUI でファイル選択
+python main.py --plx /path/to/file.plx        # ファイル指定
 python main.py --plx file.plx --skip-spike    # スパイクソーティングをスキップ
 python main.py --plx file.plx --skip-phase    # 位相ロック解析をスキップ
 python main.py --plx file.plx --no-wideband   # Widebandデータを読み込まない
@@ -161,4 +161,17 @@ PLXファイル
 ## 依存パッケージ
 ```
 numpy, scipy, matplotlib, scikit-learn, neo, pywt, opencv-python
+```
+
+### NumPy 2.0+ の場合
+NumPy 2.0 で `ndarray.ptp` が削除されたため、`quantities` / `neo` パッケージでエラーが発生します。
+本プロジェクトでは `numpy_compat.py` で自動パッチを適用します。
+
+もしパッチで解決しない場合は以下のいずれかを実行してください:
+```bash
+# 方法1: quantities と neo を最新にアップデート
+pip install --upgrade quantities neo
+
+# 方法2: NumPy をダウングレード
+pip install "numpy<2.0"
 ```

@@ -4,6 +4,7 @@ data_loader.py - PLXデータ読み込みの一元管理
 PLXファイルからLFP（低周波）・Wideband（広帯域）・スパイク・イベントデータを
 一括で読み込み、後段のGUI/解析モジュールに渡す。
 """
+import numpy_compat  # NumPy 2.0+ 互換パッチ（neo/quantities より先に読み込む）
 import numpy as np
 import os
 from dataclasses import dataclass, field

@@ -203,7 +203,18 @@ class BandEditorFrame(ttk.LabelFrame):
         return {k: list(v) for k, v in self.get_bands().items()}
 
     def set_bands_from_json(self, d):
-        self.set_bands({k: tuple(v) for k, v in d.items()})
+        """JSONから帯域設定を復元（不正値はスキップ）"""
+        valid = {}
+        for k, v in d.items():
+            try:
+                lo, hi = float(v[0]), float(v[1])
+                if k and lo < hi:
+                    valid[k] = (lo, hi)
+            except (ValueError, TypeError, IndexError):
+                continue
+        if valid:
+            self.set_bands(valid)
+        # 空なら何もしない（デフォルトを維持）
 
 
 # ============================================================
@@ -225,6 +236,7 @@ class LfpFilterGUI:
         self.on_done = on_done
         self.vars = {}
         self.band_editor = None
+        self.data_info_label = None   # データ情報ラベル
 
         self.root = tk.Tk()
         self.root.title("LFP Filter Settings")
@@ -233,6 +245,110 @@ class LfpFilterGUI:
 
         self._build_ui()
         self._load_config()
+        self._ensure_defaults()   # 空値をデフォルトに復元
+        self._apply_plx_data()    # plx_data の情報を GUI に反映（_load_configより後＝最優先）
+
+    # ============================
+    # plx_data → GUI 反映
+    # ============================
+    # plx_data が渡された場合に JSON より優先してセットすべきキー
+    _PLX_DATA_KEYS = {
+        'plx_file', 'output_dir',
+        'plot_t_start', 'plot_t_end',
+        'n_sessions', 'n_stim_per_session',
+    }
+
+    def _apply_plx_data(self):
+        """plx_data が渡されている場合、GUIフィールドに反映する。
+        _load_config() の後に呼ぶことで plx_data の値が最優先になる。"""
+        if self.plx_data is None:
+            return
+
+        pd = self.plx_data
+
+        # --- ファイルパス・出力先 ---
+        if pd.filepath and 'plx_file' in self.vars:
+            self.vars['plx_file']['var'].set(pd.filepath)
+        if pd.output_dir and 'output_dir' in self.vars:
+            self.vars['output_dir']['var'].set(pd.output_dir)
+
+        # --- 表示範囲（Trimに合わせる） ---
+        if 'plot_t_start' in self.vars:
+            self.vars['plot_t_start']['var'].set(str(pd.trim_start))
+        if 'plot_t_end' in self.vars:
+            self.vars['plot_t_end']['var'].set(str(pd.trim_end))
+
+        # --- セッション・刺激数をデータから推定 ---
+        if pd.session_times is not None and len(pd.session_times) > 0:
+            n_sessions = len(pd.session_times)
+            if 'n_sessions' in self.vars:
+                self.vars['n_sessions']['var'].set(str(n_sessions))
+
+            # 刺激数をセッション数から推定
+            if pd.stim_times is not None and len(pd.stim_times) > 0 and n_sessions > 0:
+                n_stim_per_session = len(pd.stim_times) // n_sessions
+                if n_stim_per_session > 0 and 'n_stim_per_session' in self.vars:
+                    self.vars['n_stim_per_session']['var'].set(str(n_stim_per_session))
+
+        # --- ハイカットをナイキスト以下に制限 ---
+        if pd.lfp_fs > 0 and 'filter_highcut' in self.vars:
+            nyq = pd.lfp_fs / 2.0
+            try:
+                current_highcut = float(self.vars['filter_highcut']['var'].get())
+                if current_highcut >= nyq:
+                    self.vars['filter_highcut']['var'].set(str(nyq - 1))
+            except (ValueError, tk.TclError):
+                self.vars['filter_highcut']['var'].set(str(min(100.0, nyq - 1)))
+
+        # --- データ情報ラベルを更新 ---
+        if self.data_info_label is not None:
+            info_parts = [f"📄 {os.path.basename(pd.filepath)}"]
+            if pd.lfp_raw is not None:
+                n_samples, n_ch = pd.lfp_raw.shape
+                info_parts.append(f"LFP: {n_ch}ch, {pd.lfp_fs}Hz, {pd.duration:.1f}s")
+            if pd.wideband_raw is not None:
+                info_parts.append(f"WB: {pd.wideband_raw.shape[1]}ch, {pd.wideband_fs}Hz")
+            if pd.session_times is not None:
+                info_parts.append(f"セッション: {len(pd.session_times)}")
+            if pd.stim_times is not None:
+                info_parts.append(f"刺激: {len(pd.stim_times)}回")
+            if pd.trim_start > 0 or pd.trim_end > 0:
+                info_parts.append(f"Trim: {pd.trim_start:.1f}~{pd.trim_end:.1f}s")
+            if pd.video_file:
+                info_parts.append(f"🎥 {pd.n_video_frames}f")
+            self.data_info_label.config(
+                text="  |  ".join(info_parts),
+                foreground='black'
+            )
+
+    def _ensure_defaults(self):
+        """varsに不正値や空値がある場合、LfpConfigのデフォルト値で復元"""
+        defaults = asdict(LfpConfig())
+        for k, info in self.vars.items():
+            if k not in defaults:
+                continue
+            try:
+                v = info['var'].get()
+                if info['type'] == 'int':
+                    if v == '' or v is None:
+                        info['var'].set(str(defaults[k]))
+                    else:
+                        int(v)  # 数値として有効か検証
+                elif info['type'] == 'float':
+                    if v == '' or v is None:
+                        info['var'].set(str(defaults[k]))
+                    else:
+                        float(v)  # 数値として有効か検証
+                elif info['type'] == 'str':
+                    # コンボボックスやテキスト: 空でデフォルトが非空なら復元
+                    if (v == '' or v is None) and defaults[k] != '':
+                        info['var'].set(str(defaults[k]))
+                elif info['type'] == 'bool':
+                    # BooleanVar は通常問題ないが念のため
+                    if not isinstance(v, bool):
+                        info['var'].set(defaults[k])
+            except (tk.TclError, ValueError, TypeError):
+                info['var'].set(str(defaults[k]))
 
     # ============================
     # UI構築
@@ -286,6 +402,13 @@ class LfpFilterGUI:
         r = self._section(f, "📁 ファイル", r)
         r = self._file_input(f, "plx_file", "PLXファイル", r, is_dir=False)
         r = self._file_input(f, "output_dir", "出力先フォルダ", r, is_dir=True)
+
+        # データ情報表示
+        self.data_info_label = ttk.Label(f, text="（PLXデータ未読込）",
+                                         foreground='gray', wraplength=600)
+        self.data_info_label.grid(row=r, column=0, columnspan=3,
+                                  sticky='w', padx=20, pady=(2, 8))
+        r += 1
 
         r = self._section(f, "🔧 バンドパスフィルタ", r)
         r = self._check(f, "filter_enabled", "バンドパスフィルタを適用", r, True)
@@ -573,10 +696,26 @@ class LfpFilterGUI:
             with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
                 d = json.load(f)
             for k, v in d.items():
-                if k in self.vars:
-                    self.vars[k]['var'].set(v)
-            if 'bands' in d and self.band_editor:
+                if k not in self.vars:
+                    continue
+                # plx_data がある場合、データ依存キーは JSON からロードしない
+                if self.plx_data is not None and k in self._PLX_DATA_KEYS:
+                    continue
+                # 値のバリデーション: 空や None はスキップ（デフォルトを維持）
+                if v is None or v == '':
+                    continue
+                info = self.vars[k]
+                try:
+                    if info['type'] == 'int':
+                        int(v)  # 数値として有効か検証
+                    elif info['type'] == 'float':
+                        float(v)  # 数値として有効か検証
+                    info['var'].set(v)
+                except (ValueError, TypeError, tk.TclError):
+                    pass  # 不正値はスキップ（デフォルトを維持）
+            if 'bands' in d and self.band_editor and d['bands']:
                 self.band_editor.set_bands_from_json(d['bands'])
+            print(f"[LFP GUI] 設定読み込み: {CONFIG_FILE}")
         except Exception as e:
             print(f"設定読み込みエラー: {e}")
 

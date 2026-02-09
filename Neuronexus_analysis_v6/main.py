@@ -16,6 +16,7 @@ main.py - Neuronexus Analysis v6 メインオーケストレータ
 import argparse
 import os
 import sys
+import numpy_compat  # NumPy 2.0+ 互換パッチ（neo より先に読み込む）
 import numpy as np
 
 
@@ -74,11 +75,6 @@ def main():
             lfp_config_holder[0] = config
 
         gui = LfpFilterGUI(plx_data=plx_data, on_done=on_lfp_done)
-        # PLXファイルパスをGUIに反映
-        if 'plx_file' in gui.vars:
-            gui.vars['plx_file']['var'].set(plx_file)
-        if 'output_dir' in gui.vars:
-            gui.vars['output_dir']['var'].set(output_dir)
         gui.run()
 
         lfp_config = lfp_config_holder[0]
