@@ -1,6 +1,6 @@
 {
-  "plx_file": "//Nagoya_AMCBNAS2/wakelab7/okita/whisker_analysis/20260114-1_Wildtype_S1BF/260114-4_Wildtype_S1BF_920_wisker/260114-4_Wildtype_S1BF_920_wisker.plx",
-  "output_dir": "//Nagoya_AMCBNAS2/wakelab7/okita/whisker_analysis/20260114-1_Wildtype_S1BF/0209解析/2",
+  "plx_file": "\\\\Nagoya_AMCBNAS2\\wakelab7\\okita\\whisker_analysis\\20260114-1_Wildtype_S1BF\\260114-4_Wildtype_S1BF_920_wisker\\260114-4_Wildtype_S1BF_920_wisker.plx",
+  "output_dir": "\\\\Nagoya_AMCBNAS2\\wakelab7\\okita\\whisker_analysis\\20260114-1_Wildtype_S1BF\\0209解析",
   "filter_enabled": true,
   "filter_type": "fir",
   "filter_lowcut": "0.1",
@@ -36,8 +36,8 @@
   "fft_freq_max": "300.0",
   "plot_t_start": "7.7129",
   "plot_t_end": "106.8939",
-  "show_plots": true,
-  "save_plots": true,
+  "show_plots": false,
+  "save_plots": false,
   "bands": {
     "delta": [
       1.0,

@@ -18,7 +18,23 @@
       "Bash(C:/Users/wakel/anaconda3/envs/neoeeg/python.exe:*)",
       "Bash(C:/Users/wakel/anaconda3/envs/neuropixels/python.exe:*)",
       "Bash(dir:*)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(C:Userswakelanaconda3python.exe -c \"import sys; print\\(sys.version\\)\")",
+      "Bash(\"C:/Users/wakel/anaconda3/python.exe\" -c \"import sys; print\\(sys.version\\)\")",
+      "Bash(PY=\"C:/Users/wakel/anaconda3/python.exe\")",
+      "Bash(\"$PY\" -m py_compile main_gui.py)",
+      "Bash(\"$PY\" -m py_compile project_state.py)",
+      "Bash(\"$PY\" -m py_compile font_manager.py)",
+      "Bash(\"$PY\" -m py_compile step_load.py)",
+      "Bash(\"$PY\" -m py_compile step_lfp.py)",
+      "Bash(\"$PY\" -m py_compile step_spike_sort.py)",
+      "Bash(\"$PY\" -m py_compile step_phase.py)",
+      "Bash(\"$PY\" -m py_compile lfp_pipeline.py)",
+      "Bash(\"$PY\" -c \"\nimport sys, os\nsys.path.insert\\(0, ''.''\\)\n\n# Check non-GUI imports\nprint\\(''--- Checking project_state ---''\\)\nfrom project_state import ProjectState, STEP_NAMES\nprint\\(f''  OK: STEP_NAMES = {STEP_NAMES}''\\)\n\nprint\\(''--- Checking font_manager ---''\\)\nfrom font_manager import apply_plot_font_size\nprint\\(''  OK''\\)\n\nprint\\(''--- Checking LfpConfig from step_lfp ---''\\)\nfrom step_lfp import LfpConfig, BandEditorFrame\ncfg = LfpConfig\\(\\)\nprint\\(f''  OK: filter={cfg.filter_lowcut}-{cfg.filter_highcut}Hz, bands={list\\(cfg.bands.keys\\(\\)\\)}''\\)\n\nprint\\(''--- Checking lfp_pipeline import ---''\\)\nfrom lfp_pipeline import run_lfp_pipeline\nprint\\(''  OK: run_lfp_pipeline imported''\\)\n\nprint\\(''--- Checking spike_sorting imports ---''\\)\nfrom spike_sorting import SortingConfig, ChannelSortResult, SpikeUnit\ncfg2 = SortingConfig\\(\\)\nprint\\(f''  OK: filter={cfg2.filter_low}-{cfg2.filter_high}Hz''\\)\n\nprint\\(''--- Checking phase_locking imports ---''\\)\nfrom phase_locking import analyze_spike_lfp_coupling, apply_fdr_to_phase_results\nprint\\(''  OK''\\)\n\nprint\\(''--- Checking phase_plotting_v6 import ---''\\)\nfrom phase_plotting_v6 import plot_phase_grand_summary\nprint\\(''  OK''\\)\n\nprint\\(''--- Checking spike_processing import ---''\\)\nfrom spike_processing import load_spike_data, UnitInfo\nprint\\(''  OK''\\)\n\nprint\\(\\)\nprint\\(''=== All import checks passed ===''\\)\n\")",
+      "Bash(\"C:/Users/wakel/anaconda3/python.exe\" -c \"import numpy; print\\(numpy.__version__\\)\")",
+      "Bash(\"C:/Users/wakel/anaconda3/python.exe\" -c \"\nimport numpy as np\nprint\\(''numpy version:'', np.__version__\\)\nprint\\(''hasattr ptp:'', hasattr\\(np.ndarray, ''ptp''\\)\\)\ntry:\n    a = np.array\\([1,2,3]\\)\n    print\\(''ptp works:'', a.ptp\\(\\)\\)\nexcept Exception as e:\n    print\\(''ptp error:'', e\\)\ntry:\n    print\\(''np.ptp exists:'', hasattr\\(np, ''ptp''\\)\\)\nexcept:\n    pass\n\")",
+      "Bash(\"$PY\" -c \"\nimport sys, os\nsys.path.insert\\(0, ''.''\\)\n\nprint\\(''--- Checking project_state ---''\\)\nfrom project_state import ProjectState, STEP_NAMES\nprint\\(f''  OK: STEP_NAMES = {STEP_NAMES}''\\)\n\nprint\\(''--- Checking font_manager ---''\\)\nfrom font_manager import apply_plot_font_size\nprint\\(''  OK''\\)\n\nprint\\(''--- Checking LfpConfig from step_lfp ---''\\)\nfrom step_lfp import LfpConfig, BandEditorFrame\ncfg = LfpConfig\\(\\)\nprint\\(f''  OK: filter={cfg.filter_lowcut}-{cfg.filter_highcut}Hz, bands={list\\(cfg.bands.keys\\(\\)\\)}''\\)\n\nprint\\(''--- Checking lfp_pipeline import ---''\\)\nfrom lfp_pipeline import run_lfp_pipeline\nprint\\(''  OK: run_lfp_pipeline imported''\\)\n\nprint\\(''--- Checking spike_sorting imports ---''\\)\nfrom spike_sorting import SortingConfig, ChannelSortResult, SpikeUnit\ncfg2 = SortingConfig\\(\\)\nprint\\(f''  OK: filter={cfg2.filter_low}-{cfg2.filter_high}Hz''\\)\n\nprint\\(''--- Checking phase_locking imports ---''\\)\nfrom phase_locking import analyze_spike_lfp_coupling, apply_fdr_to_phase_results\nprint\\(''  OK''\\)\n\nprint\\(''--- Checking phase_plotting_v6 import ---''\\)\nfrom phase_plotting_v6 import plot_phase_grand_summary\nprint\\(''  OK''\\)\n\nprint\\(''--- Checking spike_processing import ---''\\)\nfrom spike_processing import load_spike_data, UnitInfo\nprint\\(''  OK''\\)\n\nprint\\(\\)\nprint\\(''=== All import checks passed ===''\\)\n\")",
+      "Bash(perl:*)"
     ]
   }
 }

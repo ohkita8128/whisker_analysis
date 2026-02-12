@@ -1,0 +1,26 @@
+"""
+numpy_compat.py - NumPy 2.0+ 互換性パッチ
+
+NumPy 2.0 で削除された ndarray.ptp を復元し、
+quantities / neo パッケージとの互換性を維持する。
+
+使い方:
+    import numpy_compat   # neo をインポートする前に実行
+    import neo
+"""
+import numpy as np
+
+def _apply_ptp_patch():
+    """np.ndarray.ptp が存在しない場合にモンキーパッチを適用"""
+    if not hasattr(np.ndarray, 'ptp'):
+        try:
+            def _ptp(self, axis=None, out=None, keepdims=False):
+                return np.ptp(self, axis=axis, out=out, keepdims=keepdims)
+            np.ndarray.ptp = _ptp
+            print("[numpy_compat] np.ndarray.ptp パッチ適用済み (NumPy 2.0+ 対応)")
+        except TypeError:
+            # NumPy 2.2+ では ndarray は immutable type で setattr 不可
+            # np.ptp() 関数は存在するのでそちらを使う
+            print("[numpy_compat] np.ndarray.ptp パッチ不可 (immutable type)、np.ptp() で代替")
+
+_apply_ptp_patch()
