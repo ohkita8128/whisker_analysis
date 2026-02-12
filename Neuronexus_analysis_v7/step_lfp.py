@@ -109,6 +109,7 @@ class BandEditorFrame(ttk.LabelFrame):
 
     def __init__(self, parent, initial_bands=None):
         super().__init__(parent, text="周波数帯域設定")
+        self._toplevel = parent.winfo_toplevel()
         if initial_bands is None:
             initial_bands = self.PRESETS['Standard'].copy()
         self.band_rows = []
